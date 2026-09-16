@@ -1,16 +1,187 @@
 <!DOCTYPE html>
 <html lang="ja">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1.0">
-        <title>俺の甲子園 試合速報</title>
-        <link rel="stylesheet" href="style.css">
-    </head>
-    <body>
-        <h1>俺の甲子園 試合速報</h1>
-        <input placeholder="試合URL">
-        <button>変換</button>
-        <script src="app.js"></script>
-    </body>
-</html>    
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>俺の甲子園 試合速報</title>
+
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- 試合情報 -->
+  <header class="game-header">
+
+    <div class="teams">
+
+      <div class="team away">
+        <span id="away-name">結崎</span>
+        <span id="away-score">3</span>
+      </div>
+
+      <div class="game-center">
+        <div id="inning-display">11回表</div>
+        <div id="game-title">練習試合</div>
+      </div>
+
+      <div class="team home">
+        <span id="home-name">西西</span>
+        <span id="home-score">2</span>
+      </div>
+
+    </div>
+
+  </header>
+
+  <!-- URL入力 -->
+<section class="url-input-section">
+
+  <input
+    id="game-url"
+    type="url"
+    placeholder="試合URLを貼り付け">
+
+  <button id="load-game-btn">
+    変換
+  </button>
+
+</section>
+
+
+  <!-- 得点板 -->
+  <section class="scoreboard-section">
+
+    <div id="scoreboard-wrapper" class="scoreboard-wrapper">
+
+      <table id="scoreboard">
+
+        <thead>
+          <tr id="inning-row">
+            <th>TEAM</th>
+            <th>1</th>
+            <th>2</th>
+            <th>3</th>
+            <th>4</th>
+            <th>5</th>
+            <th>6</th>
+            <th>7</th>
+            <th>8</th>
+            <th>9</th>
+            <th>R</th>
+            <th>H</th>
+            <th>E</th>
+          </tr>
+        </thead>
+
+        <tbody>
+
+          <tr id="away-score-row">
+            <th>結崎</th>
+            <td>1</td>
+            <td>0</td>
+            <td>2</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>3</td>
+            <td>7</td>
+            <td>1</td>
+          </tr>
+
+          <tr id="home-score-row">
+            <th>西西</th>
+            <td>0</td>
+            <td>1</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>1</td>
+            <td>5</td>
+            <td>2</td>
+          </tr>
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+  </section>
+
+
+  <!-- 試合状況パネル -->
+  <section class="status-panel">
+
+    <div class="outs-panel">
+
+      <div class="status-title">OUT</div>
+
+      <div id="out-lights" class="out-lights">
+
+        <span class="light on"></span>
+        <span class="light on"></span>
+        <span class="light"></span>
+
+      </div>
+
+      <div id="out-text" class="out-text">2 OUT</div>
+
+    </div>
+
+    <div class="runners-panel">
+
+      <div class="status-title">走者</div>
+
+      <div id="runner-text">小栗・松岡</div>
+
+    </div>
+
+  </section>
+
+
+  <!-- カード表示エリア -->
+  <main>
+
+    <section id="card-container" class="card">
+
+        <!-- JavaScriptがここへカードを描画 -->
+ 
+    </section>
+
+  </main>
+
+
+  <!-- 操作ボタン -->
+  <footer class="controls">
+
+    <button id="prev-btn" class="control-btn">
+      ◀ 前
+    </button>
+
+    <button id="next-btn" class="control-btn next">
+      次 ▶
+    </button>
+
+  </footer>
+
+</div>
+
+ <script src="team.js"></script>
+ <script src="state.js"></script>
+ <script src="app.js"></script>
+
+</body>
+</html>
     
