@@ -109,7 +109,8 @@ body{
 }
 
 .scoreboard-wrapper{
-  overflow-x:visible;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch; /* iOSでのスワイプを滑らかに */
 }
 
 #scoreboard{

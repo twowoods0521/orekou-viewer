@@ -208,94 +208,93 @@ function renderCard(){
     : card.snapshot;
 
   updateStatus(snap);
-    renderScoreboard(snap);
-if(card.type==="start"){
+  renderScoreboard(snap);
 
-  const awayRows = sampleAwayLineup.map(player=>`
-    <tr>
-      <td>${player.order}</td>
-      <td>${player.pos}</td>
-      <td>${player.name}</td>
-    </tr>
-  `).join("");
+  if(card.type==="start"){
 
-  const homeRows = sampleHomeLineup.map(player=>`
-    <tr>
-      <td>${player.order}</td>
-      <td>${player.pos}</td>
-      <td>${player.name}</td>
-    </tr>
-  `).join("");
+    const awayRows = sampleAwayLineup.map(player=>`
+      <tr>
+        <td>${player.order}</td>
+        <td>${player.pos}</td>
+        <td>${player.name}</td>
+      </tr>
+    `).join("");
 
-  cardContainer.innerHTML=`
+    const homeRows = sampleHomeLineup.map(player=>`
+      <tr>
+        <td>${player.order}</td>
+        <td>${player.pos}</td>
+        <td>${player.name}</td>
+      </tr>
+    `).join("");
 
-    <div class="card-type">試合開始</div>
+    cardContainer.innerHTML=`
 
-    <h2>結崎 vs 西西</h2>
+      <div class="card-type">試合開始</div>
 
-    <div class="opening-subtitle">
+      <h2>結崎 vs 西西</h2>
 
-      練習試合
+      <div class="opening-subtitle">
 
-    </div>
-
-    <div class="opening-score">
-
-      <span>結崎</span>
-
-      <span>0 - 0</span>
-
-      <span>西西</span>
-
-    </div>
-
-    <div class="opening-order">
-
-      <div class="opening-team">
-
-        <div class="opening-team-title">
-
-          先攻　結崎
-
-        </div>
-
-        <table class="order-table">
-
-          <tbody>
-
-            ${awayRows}
-
-          </tbody>
-
-        </table>
+        練習試合
 
       </div>
 
-      <div class="opening-team">
+      <div class="opening-score">
 
-        <div class="opening-team-title">
+        <span>結崎</span>
 
-          後攻　西西
+        <span>${snap.score.away} - ${snap.score.home}</span>
 
-        </div>
-
-        <table class="order-table">
-
-          <tbody>
-
-            ${homeRows}
-
-          </tbody>
-
-        </table>
+        <span>西西</span>
 
       </div>
 
-    </div>
+      <div class="opening-order">
 
-  `;
+        <div class="opening-team">
 
-}
+          <div class="opening-team-title">
+
+            先攻　結崎
+
+          </div>
+
+          <table class="order-table">
+
+            <tbody>
+
+              ${awayRows}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+        <div class="opening-team">
+
+          <div class="opening-team-title">
+
+            後攻　西西
+
+          </div>
+
+          <table class="order-table">
+
+            <tbody>
+
+              ${homeRows}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    `;
 
   }
 
@@ -347,7 +346,7 @@ if(card.type==="start"){
 
   animateCard();
 
-} 
+}
 
 
 // ------------------------------
@@ -388,6 +387,7 @@ function renderScoreboard(snapshot){
 
   const awayRow=document.getElementById("away-score-row");
   const homeRow=document.getElementById("home-score-row");
+
 
   awayRow.innerHTML=`<th>${document.getElementById("away-name").textContent}</th>`;
   homeRow.innerHTML=`<th>${document.getElementById("home-name").textContent}</th>`;
@@ -471,7 +471,7 @@ function getScoreboardDisplayFromSnapshot(snapshot,inning,half){
 }
 
 
-  // ------------------------------
+// ------------------------------
 // 得点板セルタップジャンプ
 // ------------------------------
 
@@ -507,9 +507,6 @@ function setupScoreboardJump(){
     });
 
 }
-  
-
-}
 
 function updateStatus(snap){
 
@@ -518,10 +515,13 @@ function updateStatus(snap){
 
   document.getElementById("away-score").textContent=snap.score.away;
   document.getElementById("home-score").textContent=snap.score.home;
+  document.getElementById("out-text").textContent=`${snap.outs} OUT`;
 
   const lights=document.querySelectorAll(".light");
 
   lights.forEach((light,index)=>{
+    document.getElementById("out-text").textContent =
+  `${snap.outs} OUT`;
 
     light.classList.toggle("on",index<snap.outs);
 
@@ -609,14 +609,11 @@ nextBtn.onclick=()=>{
   nextCard();
 
   if(gameState.currentCard===gameState.cards.length-1){
-
     lockFinalScore=true;
-
   }
 
   renderCard();
 
 };
 
-setupScoreboardJump();
 renderCard();
