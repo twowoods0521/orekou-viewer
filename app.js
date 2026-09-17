@@ -43,7 +43,7 @@ const sampleCards = [
   {
     type:"start",
     snapshot:{
-      scoreboard:strocturedClone(gameState.scoreboard),
+      scoreboard:structuredClone(gameState.scoreboard),
       inning:1,
       half:"top",
       outs:0,
@@ -161,8 +161,8 @@ sampleCards.push({
   type:"end",
   snapshot:{
     scoreboard:structuredClone(gameState.scoreboard),
-    inning:9,
-    half:"top",
+    inning:gameState.inning,
+    half:gameState.half,
     outs:3,
     runners:[],
     score:getCurrentScore(),
@@ -208,48 +208,8 @@ function renderCard(){
     : card.snapshot;
 
   updateStatus(snap);
-  highlightCurrentInning(snap);
-
-  // ------------------------------
-// 得点板セルタップジャンプ
-// ------------------------------
-
-function jumpToHalf(inning, half){
-
-  const target = gameState.firstCard[half][inning];
-
-  if(target === undefined) return;
-
-  gameState.currentCard = target;
-  renderCard();
-
-}
-
-function setupScoreboardJump(){
-
-  const awayRow = document.getElementById("away-score-row");
-  const homeRow = document.getElementById("home-score-row");
-
-  // TEAM列(0)とR/H/Eを除き、イニングセルだけ設定
-  for(let inning = 1; inning <= gameState.maxInning; inning++){
-
-    if(awayRow.children[inning]){
-
-      awayRow.children[inning].onclick = () => jumpToHalf(inning,"top");
-
-    }
-
-    if(homeRow.children[inning]){
-
-      homeRow.children[inning].onclick = () => jumpToHalf(inning,"bottom");
-
-    }
-
-  }
-
-}
-
-  if(card.type==="start"){
+    renderScoreboard(snap);
+if(card.type==="start"){
 
   const awayRows = sampleAwayLineup.map(player=>`
     <tr>
@@ -337,12 +297,6 @@ function setupScoreboardJump(){
 
 }
 
-    cardContainer.innerHTML=`
-      <div class="card-type">試合開始</div>
-      <h2>結崎 vs 西西</h2>
-      <p>練習試合</p>
-    `;
-
   }
 
   if(card.type==="batter"){
@@ -392,6 +346,168 @@ function setupScoreboardJump(){
   }
 
   animateCard();
+
+} 
+
+
+// ------------------------------
+// 得点板描画
+// state.jsから完全生成
+// ------------------------------
+
+function renderScoreboard(snapshot){
+
+  const table=document.getElementById("scoreboard");
+  const inningRow=document.getElementById("inning-row");
+  const tbody=document.getElementById("scoreboard-body");
+
+  // 延長なら横スクロール
+  table.classList.toggle(
+    "extra-innings",
+    gameState.maxInning>9
+  );
+
+  // ---------- ヘッダー ----------
+
+  inningRow.innerHTML="<th>TEAM</th>";
+
+  for(let i=1;i<=gameState.maxInning;i++){
+
+    inningRow.innerHTML+=`<th>${i}</th>`;
+
+  }
+
+  inningRow.innerHTML+="<th>R</th><th>H</th><th>E</th>";
+
+  // ---------- 行生成 ----------
+
+  tbody.innerHTML=`
+    <tr id="away-score-row"></tr>
+    <tr id="home-score-row"></tr>
+  `;
+
+  const awayRow=document.getElementById("away-score-row");
+  const homeRow=document.getElementById("home-score-row");
+
+  awayRow.innerHTML=`<th>${document.getElementById("away-name").textContent}</th>`;
+  homeRow.innerHTML=`<th>${document.getElementById("home-name").textContent}</th>`;
+
+  // ---------- イニング ----------
+
+  for(let i=1;i<=gameState.maxInning;i++){
+
+    awayRow.innerHTML+=`
+      <td data-inning="${i}" data-half="top">
+        ${getScoreboardDisplayFromSnapshot(snapshot,i,"top")}
+      </td>
+    `;
+
+    homeRow.innerHTML+=`
+      <td data-inning="${i}" data-half="bottom">
+        ${getScoreboardDisplayFromSnapshot(snapshot,i,"bottom")}
+      </td>
+    `;
+
+  }
+
+  // ---------- R H E ----------
+
+  awayRow.innerHTML+=`
+    <td>${snapshot.scoreboard.total.away.R}</td>
+    <td>${snapshot.scoreboard.total.away.H}</td>
+    <td>${snapshot.scoreboard.total.away.E}</td>
+  `;
+
+  homeRow.innerHTML+=`
+    <td>${snapshot.scoreboard.total.home.R}</td>
+    <td>${snapshot.scoreboard.total.home.H}</td>
+    <td>${snapshot.scoreboard.total.home.E}</td>
+  `;
+
+  // ---------- ハイライト ----------
+
+  highlightCurrentInning(snapshot);
+
+  // ---------- タップ ----------
+
+  setupScoreboardJump();
+
+}
+
+// ------------------------------
+// スナップショット用表示
+// ------------------------------
+
+function getScoreboardDisplayFromSnapshot(snapshot,inning,half){
+
+  const cell=snapshot.scoreboard[inning][half];
+
+  switch(cell.status){
+
+    case "pending":
+      return "";
+
+    case "live":
+      return cell.runs===0 ? "-" : String(cell.runs);
+
+    case "done":
+      return String(cell.runs);
+
+    case "walkoff":
+
+      if(half==="bottom"){
+
+        return `${cell.runs}x`;
+
+      }
+
+      return String(cell.runs);
+
+    default:
+      return "";
+
+  }
+
+}
+
+
+  // ------------------------------
+// 得点板セルタップジャンプ
+// ------------------------------
+
+function jumpToHalf(inning, half){
+
+  const target = gameState.firstCard[half][inning];
+
+  if(target === undefined) return;
+
+  gameState.currentCard = target;
+  renderCard();
+
+}
+
+function setupScoreboardJump(){
+
+  document
+    .querySelectorAll("#scoreboard td[data-inning]")
+    .forEach(cell=>{
+
+      cell.onclick=()=>{
+
+        jumpToHalf(
+
+          Number(cell.dataset.inning),
+
+          cell.dataset.half
+
+        );
+
+      };
+
+    });
+
+}
+  
 
 }
 
