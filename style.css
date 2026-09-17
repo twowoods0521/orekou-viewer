@@ -1,5 +1,456 @@
+/* ==============================
+   基本設定
+============================== */
+
+*{
+  box-sizing:border-box;
+}
+
 body{
-    font-family: sans-serif;
-    background: #f5f5f5;
-    margin: 20px;
+  margin:0;
+  background:#f3f5f4;
+  color:#1f2937;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue","Yu Gothic",sans-serif;
+}
+
+.container{
+  max-width:900px;
+  margin:auto;
+  padding:14px;
+}
+
+
+/* ==============================
+   試合情報
+============================== */
+
+.game-header{
+  background:white;
+  border:1px solid #d9dfdc;
+  border-radius:8px;
+  padding:16px;
+  margin-bottom:10px;
+}
+
+.teams{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.team{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.team span:first-child{
+  font-size:16px;
+}
+
+.team span:last-child{
+  font-size:34px;
+  font-weight:600;
+  color:#0b5d3b;
+}
+
+.game-center{
+  text-align:center;
+}
+
+#inning-display{
+  font-size:20px;
+  font-weight:600;
+}
+
+#game-title{
+  font-size:14px;
+  color:#6b7280;
+}
+
+
+/* ==============================
+   URL入力
+============================== */
+
+.url-input-section{
+  display:flex;
+  gap:8px;
+  margin-bottom:10px;
+}
+
+#game-url{
+  flex:1;
+  padding:11px;
+  border:1px solid #cfd6d3;
+  border-radius:6px;
+  font-size:15px;
+}
+
+#load-game-btn{
+  padding:11px 16px;
+  border:none;
+  border-radius:6px;
+  background:#0b5d3b;
+  color:white;
+  font-weight:600;
+}
+
+
+/* ==============================
+   得点板
+============================== */
+
+.scoreboard-section{
+  background:white;
+  border:1px solid #d9dfdc;
+  border-radius:8px;
+  margin-bottom:8px;
+}
+
+.scoreboard-wrapper{
+  overflow-x:visible;
+}
+
+#scoreboard{
+  width:100%;
+  border-collapse:collapse;
+  table-layout:fixed;
+}
+
+#scoreboard.extra-innings{
+  width:max-content;
+  min-width:100%;
+}
+
+#scoreboard th,
+#scoreboard td{
+  text-align:center;
+  padding:10px 5px;
+  border-bottom:1px solid #e5e7eb;
+  font-size:17px;
+}
+
+#scoreboard thead th{
+  background:#0b5d3b;
+  color:white;
+  font-weight:600;
+}
+
+#scoreboard tbody th{
+  background:#f8faf9;
+  color:#0b5d3b;
+  font-weight:600;
+}
+
+#scoreboard td{
+  cursor:pointer;
+}
+
+
+/* ==============================
+   試合状況
+============================== */
+
+.status-panel{
+  background:white;
+  border:1px solid #d9dfdc;
+  border-radius:8px;
+  padding:12px 18px;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:46px;
+  margin-bottom:10px;
+}
+
+.outs-panel,
+.runners-panel{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.status-title{
+  font-size:18px;
+  font-weight:600;
+}
+
+.out-lights{
+  display:flex;
+  gap:8px;
+}
+
+.light{
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  background:#d1d5db;
+  border:1px solid #bfc5c2;
+}
+
+.light.on{
+  background:#d62828;
+  border-color:#b11f1f;
+}
+
+#runner-text{
+  font-size:18px;
+  font-weight:500;
+}
+
+
+/* ==============================
+   カード
+============================== */
+
+.card{
+  background:white;
+  border:1px solid #d9dfdc;
+  border-radius:8px;
+  padding:18px;
+  min-height:220px;
+}
+
+.card-type{
+  color:#6b7280;
+  font-size:13px;
+  margin-bottom:8px;
+}
+
+.card h2{
+  margin:0 0 12px;
+  font-size:28px;
+  font-weight:600;
+}
+
+.batter-history{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  font-size:15px;
+}
+
+.history-rbi{
+  border:1px solid #c1121f;
+  color:#c1121f;
+  padding:2px 6px;
+  border-radius:4px;
+}
+
+
+/* ==============================
+   操作ボタン
+============================== */
+
+.controls{
+  display:flex;
+  gap:10px;
+  margin-top:12px;
+}
+
+.control-btn{
+  flex:1;
+  padding:13px;
+  border:1px solid #cfd6d3;
+  border-radius:6px;
+  background:white;
+  font-size:17px;
+  font-weight:600;
+}
+
+.control-btn.next{
+  background:#0b5d3b;
+  color:white;
+  border-color:#0b5d3b;
+}
+
+
+/* ==============================
+   iPad横
+============================== */
+
+@media (min-width:768px){
+
+  .container{
+    padding:20px;
+  }
+
+}
+
+/* ==============================
+   カードスライド
+============================== */
+
+.slide-in{
+
+  animation:slideIn .18s ease-out;
+
+}
+
+@keyframes slideIn{
+
+  from{
+
+    opacity:.35;
+    transform:translateX(24px);
+
+  }
+
+  to{
+
+    opacity:1;
+    transform:translateX(0);
+
+  }
+
+}
+
+
+/* ==============================
+   得点強調
+============================== */
+
+.score-pop{
+
+  animation:scorePop .45s ease-out;
+
+}
+
+@keyframes scorePop{
+
+  0%{
+
+    transform:scale(1);
+
+  }
+
+  35%{
+
+    transform:scale(1.18);
+
+    color:#0b5d3b;
+
+  }
+
+  100%{
+
+    transform:scale(1);
+
+  }
+
+}
+/* ==============================
+   現在イニングのハイライト
+============================== */
+
+.current-inning{
+
+  background:#e7f3ec !important;
+  font-weight:700;
+  color:#0b5d3b;
+
+  transition:background .18s ease;
+
+}
+
+.current-inning-header{
+
+  background:#156a47 !important;
+}
+
+/* ==============================
+   試合開始カード
+============================== */
+
+.opening-subtitle{
+
+  text-align:center;
+  color:#6b7280;
+
+  margin-top:-6px;
+  margin-bottom:14px;
+
+}
+
+.opening-score{
+
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  gap:18px;
+
+  font-size:22px;
+  font-weight:600;
+
+  color:#0b5d3b;
+
+  margin-bottom:16px;
+
+}
+
+.opening-order{
+
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+
+}
+
+.opening-team{
+
+  border:1px solid #d9dfdc;
+  padding:10px;
+
+  border-radius:6px;
+
+}
+
+.opening-team-title{
+
+  font-weight:600;
+  color:#0b5d3b;
+
+  margin-bottom:8px;
+
+}
+
+.order-table{
+
+  width:100%;
+  border-collapse:collapse;
+
+}
+
+.order-table td{
+
+  padding:5px 2px;
+  font-size:15px;
+
+}
+
+.order-table td:nth-child(1){
+
+  width:26px;
+  text-align:center;
+  color:#6b7280;
+
+}
+
+.order-table td:nth-child(2){
+
+  width:30px;
+  text-align:center;
+  font-weight:600;
+
+}
+
+@media (max-width:700px){
+
+  .opening-order{
+
+    grid-template-columns:1fr;
+
+  }
+
 }
