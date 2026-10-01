@@ -3,7 +3,7 @@
 // 俺の甲子園 パーサー
 // ==============================
 
-const WORKER_URL="https://YOUR-WORKER.workers.dev/?url=";
+const WORKER_URL="https://orekou-proxy.twowoods0521.workers.dev/?url=";
 
 // ------------------------------
 // URL読込
@@ -16,12 +16,26 @@ async function loadGame(url){
   try{
 
     resetGameState();
+    resetTeamData();
 
     const html=await fetchGameHTML(url);
 
-    const gameData=parseGameHTML(html,url);
+    const matchData=parseGameHTML(html,url);
 
-    const cards=buildCards(gameData);
+    gameData.away.teamName=matchData.teamNames.away?.name||"";
+    gameData.away.teamNameShort=shortenTeamName(gameData.away.teamName);
+    gameData.away.teamUrl=matchData.teamNames.away?.url||"";
+
+    gameData.home.teamName=matchData.teamNames.home?.name||"";
+    gameData.home.teamNameShort=shortenTeamName(gameData.home.teamName);
+    gameData.home.teamUrl=matchData.teamNames.home?.url||"";
+
+    setLineup("away",matchData.awayLineup);
+    setBench("away",matchData.awayBench);
+    setLineup("home",matchData.homeLineup);
+    setBench("home",matchData.homeBench);
+
+    const cards=buildCards(matchData);
 
     setCards(cards);
 
@@ -34,6 +48,15 @@ async function loadGame(url){
     console.error(error);
 
   }
+
+}
+
+// チーム名の冒頭2文字(得点板用の略称)
+function shortenTeamName(name){
+
+  if(!name)return"";
+
+  return name.length<=2 ? name : name.slice(0,2);
 
 }
 
@@ -68,6 +91,9 @@ function parseGameHTML(html,url){
     "text/html"
   );
 
+  const awayData=parseLineup(doc,0);
+  const homeData=parseLineup(doc,1);
+
   return{
 
     url,
@@ -76,9 +102,13 @@ function parseGameHTML(html,url){
 
     scoreboard:parseScoreboard(doc),
 
-    awayLineup:parseLineup(doc,0),
+    teamNames:parseTeamNames(doc),
 
-    homeLineup:parseLineup(doc,1),
+    awayLineup:awayData.lineup,
+    awayBench:awayData.bench,
+
+    homeLineup:homeData.lineup,
+    homeBench:homeData.bench,
 
     playByPlay:parsePlayByPlay(doc)
 
@@ -95,6 +125,50 @@ function parseGameInfo(doc){
   return{
 
     title:doc.querySelector("title")?.textContent.trim()
+
+  };
+
+}
+
+// ------------------------------
+// チーム名(行政区分・学校種別を除いた略称)+ リンク
+// 得点結果の「◯◯ 数字 - 数字 ◯◯」の行にある
+// 直近の2つのaタグをチーム名として取得する
+// ------------------------------
+
+function parseTeamNames(doc){
+
+  const elements=[...doc.querySelectorAll("body *")];
+
+  const target=elements.find(el=>{
+
+    const links=el.querySelectorAll(":scope > a");
+
+    if(links.length<2)return false;
+
+    return /\d+\s*-\s*\d+/.test(el.textContent);
+
+  });
+
+  if(!target){
+
+    return{away:null,home:null};
+
+  }
+
+  const links=[...target.querySelectorAll(":scope > a")];
+
+  return{
+
+    away:{
+      name:links[0]?.textContent.trim()||"",
+      url:links[0]?.getAttribute("href")||""
+    },
+
+    home:{
+      name:links[1]?.textContent.trim()||"",
+      url:links[1]?.getAttribute("href")||""
+    }
 
   };
 
@@ -145,7 +219,6 @@ function parseScoreboard(doc){
 
         cell.status="skip";
         cell.runs=0;
-        cell.walkoff=false;
 
       }else if(text.endsWith("×")){
 
@@ -182,8 +255,9 @@ function parseScoreboard(doc){
   return structuredClone(gameState.scoreboard);
 
 }
+
 // ------------------------------
-// オーダー取得
+// オーダー取得(スタメン+ベンチ)
 // ------------------------------
 
 function parseLineup(doc,index){
@@ -192,22 +266,38 @@ function parseLineup(doc,index){
 
   const lineupTable=tables.filter(table=>
 
-    table.textContent.includes("打順")&&
-    table.textContent.includes("名前")
+    table.textContent.includes("選手")&&
+    table.textContent.includes("守")
 
   )[index];
 
-  if(!lineupTable)return[];
+  if(!lineupTable)return{lineup:[],bench:[]};
 
   const rows=[...lineupTable.querySelectorAll("tr")].slice(1);
 
-  return rows.map(row=>{
+  const lineup=[];
+  const bench=[];
+  let inBench=false;
+
+  rows.forEach(row=>{
 
     const cells=[...row.querySelectorAll("td")];
 
-    return{
+    // 「+ベンチ」の行は列数が少ない見出し行なので、ここでベンチ扱いに切り替える
+    if(cells.length<6){
 
-      order:Number(cells[0]?.textContent.trim()||0),
+      inBench=true;
+      return;
+
+    }
+
+    const orderText=cells[0]?.textContent.trim()||"";
+    const nameCell=cells[4];
+    const nameLink=nameCell?.querySelector("a");
+
+    const player={
+
+      order:orderText==="-" ? "-" : Number(orderText||0),
 
       pos:cells[1]?.textContent.trim()||"",
 
@@ -215,15 +305,27 @@ function parseLineup(doc,index){
 
       rarity:cells[3]?.textContent.trim()||"",
 
-      name:cells[4]?.textContent.trim()||"",
+      name:nameCell?.textContent.trim()||"",
 
-      hand:cells[5]?.textContent.trim()||"",
+      url:nameLink?.getAttribute("href")||"",
 
-      history:[]
+      hand:`${cells[5]?.textContent.trim()||""}投${cells[6]?.textContent.trim()||""}打`
 
     };
 
+    if(inBench){
+
+      bench.push(player);
+
+    }else{
+
+      lineup.push(player);
+
+    }
+
   });
+
+  return{lineup,bench};
 
 }
 
@@ -232,16 +334,6 @@ function parseLineup(doc,index){
 // ------------------------------
 
 function parsePlayByPlay(doc){
-
-  const header=parseInningHeader(line);
-
-  if(header){
-
-   startHalf(header.inning,header.half);
-
-   continue;
-
-  }
 
   const heading=[...doc.querySelectorAll("h2,h3,strong")]
 
@@ -258,7 +350,7 @@ function parsePlayByPlay(doc){
     const text=node.textContent.trim();
 
     // 「戦評」「個人成績」「オーダー」のいずれかの見出しが来たら
-    // そこで打ち切る（この見出し行自体はlinesに含めない）
+    // そこで打ち切る(この見出し行自体はlinesに含めない)
     if(/^(戦評|個人成績|オーダー)/.test(text)){
 
       break;
@@ -280,10 +372,26 @@ function parsePlayByPlay(doc){
 }
 
 // ==============================
+// side判定用ヘルパー
+// ==============================
+
+function battingSideOf(half){
+
+  return half==="top" ? "away" : "home";
+
+}
+
+function fieldingSideOf(half){
+
+  return half==="top" ? "home" : "away";
+
+}
+
+// ==============================
 // カード生成
 // ==============================
 
-function buildCards(gameData){
+function buildCards(matchData){
 
   const cards=[];
 
@@ -291,31 +399,66 @@ function buildCards(gameData){
 
     type:"start",
 
-    game:gameData.game,
+    game:matchData.game,
 
-    awayLineup:gameData.awayLineup,
-
-    homeLineup:gameData.homeLineup,
+    awayLineup:gameData.away.lineup,
+    homeLineup:gameData.home.lineup,
 
     snapshot:createSnapshot()
 
   });
 
   const plateBuffer=[];
+  const defenseBuffer=[]; // { line, half } の配列
 
-  const defenseBuffer=[];
+  const flushPlate=()=>{
 
-  for(const line of gameData.playByPlay){
+    if(plateBuffer.length){
+
+      cards.push(...finalizePlateAppearance(plateBuffer.splice(0),cards.length));
+
+    }
+
+  };
+
+  const flushDefense=()=>{
+
+    if(defenseBuffer.length){
+
+      cards.push(buildDefenseCard(defenseBuffer.splice(0)));
+
+    }
+
+  };
+
+  for(const line of matchData.playByPlay){
 
     // --------------------------
-    // 守備交代
+    // イニング見出し
     // --------------------------
 
-    const defense=extractSpecial(line);
+    const header=parseInningHeader(line);
+
+    if(header){
+
+      flushPlate();
+      flushDefense();
+
+      startHalf(header.inning,header.half);
+
+      continue;
+
+    }
+
+    // --------------------------
+    // 守備交代・代打・代走の宣言
+    // --------------------------
+
+    const special=extractSpecial(line);
 
     if(
 
-      defense&&
+      special&&
 
       [
 
@@ -331,11 +474,11 @@ function buildCards(gameData){
 
         "pitcherChange"
 
-      ].includes(defense.type)
+      ].includes(special.type)
 
     ){
 
-      defenseBuffer.push(line);
+      defenseBuffer.push({line,half:gameState.half});
 
       continue;
 
@@ -343,9 +486,7 @@ function buildCards(gameData){
 
     if(defenseBuffer.length){
 
-      cards.push(buildDefenseCard(defenseBuffer));
-
-      defenseBuffer.length=0;
+      flushDefense();
 
     }
 
@@ -355,9 +496,7 @@ function buildCards(gameData){
 
     if(isNewBatter(line)&&plateBuffer.length){
 
-      cards.push(...finalizePlateAppearance(plateBuffer,cards.length));
-
-      plateBuffer.length=0;
+      flushPlate();
 
     }
 
@@ -365,11 +504,11 @@ function buildCards(gameData){
 
   }
 
-  if(plateBuffer.length){
+  flushPlate();
+  flushDefense();
 
-    cards.push(...finalizePlateAppearance(plateBuffer,cards.length));
-
-  }
+  // 3アウトを待たずに試合経過が終わっている場合はサヨナラ
+  finishGame({walkoff:!lastHalfChanged});
 
   cards.push({
 
@@ -384,7 +523,7 @@ function buildCards(gameData){
 }
 
 // ==============================
-// 新しい打者判定
+// イニング見出し判定
 // ==============================
 
 function parseInningHeader(line){
@@ -405,6 +544,10 @@ function parseInningHeader(line){
 
 }
 
+// ==============================
+// 新しい打者判定
+// ==============================
+
 function isNewBatter(line){
 
   if(/^(一塁走者|二塁走者|三塁走者)の/.test(line)){
@@ -423,7 +566,6 @@ function isNewBatter(line){
 
 }
 
-
 // ==============================
 // 打席確定
 // ==============================
@@ -434,19 +576,34 @@ function finalizePlateAppearance(lines,baseIndex){
 
   const events=lines.map(classifyLine);
 
-  const batter=lines[0].match(/^(.+?)が/)?.[1]||"";
+  const side=battingSideOf(gameState.half);
+
+  const runnersAtStart=gameState.runners.length;
+
+  const rawToken=lines[0].match(/^(.+?)が/)?.[1]||"";
+
+  const batterPlayer=findPlayerByToken(side,rawToken);
 
   cards.push({
 
     type:"batter",
 
-    title:batter,
+    title:rawToken,
+
+    player:batterPlayer,
 
     snapshot:createSnapshot()
 
   });
 
   registerJump(baseIndex+cards.length-1);
+
+  // 得点は打席全体を通して先に集計しておく(満塁ゲッツーの判定に使うため)
+  const totalScore=events
+
+    .filter(e=>e.type==="score")
+
+    .reduce((sum,e)=>sum+(e.score||0),0);
 
   let result=null;
 
@@ -455,8 +612,8 @@ function finalizePlateAppearance(lines,baseIndex){
   const display=[];
 
   const steals=[];
-
-  let totalScore=0;
+  const pickoffs=[];
+  const extraEvents=[]; // 盗塁・牽制死など、打者本人以外に影響するイベント
 
   for(const event of events){
 
@@ -469,8 +626,6 @@ function finalizePlateAppearance(lines,baseIndex){
     }
 
     if(event.type==="score"){
-
-      totalScore+=event.score||0;
 
       continue;
 
@@ -498,15 +653,25 @@ function finalizePlateAppearance(lines,baseIndex){
         }
         break;
 
-      case"doublePlay":
+      case"doublePlay":{
+
+        // 満塁かつこの打席で得点が無い場合のみ、前の走者(三塁走者)を消す
+        const useFrontRunner=runnersAtStart===3&&totalScore===0;
+
         result={
 
           ...event,
 
-          abbr:position+"併殺"
+          abbr:position+"併殺",
+
+          removeRearRunner:!useFrontRunner,
+          removeFrontRunner:useFrontRunner
 
         };
+
         break;
+
+      }
 
       case"fielderChoiceDoublePlay":
         result={
@@ -523,6 +688,12 @@ function finalizePlateAppearance(lines,baseIndex){
       case"stealThird":
       case"caughtStealingThird":
         steals.push(event.text);
+        extraEvents.push(event);
+        break;
+
+      case"pickoff":
+        pickoffs.push(event.text);
+        extraEvents.push(event);
         break;
 
       default:
@@ -538,11 +709,7 @@ function finalizePlateAppearance(lines,baseIndex){
 
   if(totalScore>0){
 
-    const team=gameState.half==="top"
-      ?"away"
-      :"home";
-
-    addRuns(team,totalScore);
+    addRuns(side,totalScore);
 
     for(let i=0;i<totalScore;i++){
 
@@ -552,14 +719,32 @@ function finalizePlateAppearance(lines,baseIndex){
 
   }
 
-  applyEventToState(result,batter);
+  // 打者本人の結果を適用
+  applyEventToState(result,rawToken);
+
+  // 盗塁・牽制死など、打者以外に影響するイベントを順番に適用
+  extraEvents.forEach(event=>{
+
+    applyEventToState(event,null);
+
+  });
+
+  if(batterPlayer){
+
+    addPlayerHistory(side,batterPlayer.order,{
+
+      short:result?.abbr||"",
+      rbi:totalScore
+
+    });
+
+  }
 
   cards.push({
 
     type:"result",
 
     text:display,
-
     result,
 
     snapshot:createSnapshot()
@@ -580,12 +765,30 @@ function finalizePlateAppearance(lines,baseIndex){
 
   });
 
+  pickoffs.forEach(text=>{
+
+    cards.push({
+
+      type:"pickoff",
+
+      text:[text],
+
+      snapshot:createSnapshot()
+
+    });
+
+  });
+
   return cards;
 
 }
 
 
+let lastHalfChanged=false;
+
 function applyEventToState(event,batter){
+
+  lastHalfChanged=false;
 
   if(!event)return;
 
@@ -615,23 +818,33 @@ function applyEventToState(event,batter){
 
   setRunners([...gameState.runners]);
 
-  if(gameState.outs>=3){
+  const battingSide=battingSideOf(gameState.half);
+  const fieldingSide=fieldingSideOf(gameState.half);
 
-    advanceHalf();
-    
+  const hitTypes=[
+
+    "hit","infieldHit","double","triple",
+    "homeRun","buntHit","hitAndRun"
+
+  ];
+
+  if(hitTypes.includes(event.type)){
+
+    addHit(battingSide);
+
   }
 
-}
+  if(event.type==="error"){
 
-function advanceHalf(){
+    addError(fieldingSide);
 
-  if(gameState.half==="top"){
+  }
 
-    startHalf(gameState.inning,"bottom");
+  if(gameState.outs>=3){
 
-  }else{
+    changeHalf();
 
-    startHalf(gameState.inning+1,"top");
+    lastHalfChanged=true;
 
   }
 
@@ -655,50 +868,84 @@ function registerJump(cardIndex){
 }
 
 // ==============================
-// 守備交代カード
+// 守備交代カード(代打・代走の宣言も含む)
 // ==============================
 
-function buildDefenseCard(lines){
+function buildDefenseCard(entries){
 
   const stayMap={};
-
   const output=[];
 
-  lines.forEach(line=>{
+  entries.forEach(({line,half})=>{
 
-    const stay=line.match(/代(?:打|走)で出た(.+?)、そのまま(.+?)手の守備につく/);
+    // 代打
+    let m=line.match(/^(.+?)に代打、(.+?)！?$/);
 
-    if(stay){
+    if(m){
 
-      stayMap[stay[1]]=stay[2];
+      const[,outToken,inToken]=m;
+      const side=battingSideOf(half);
+
+      const outPlayer=findPlayerByToken(side,outToken);
+
+      if(outPlayer){
+
+        substitutePlayer(side,outPlayer.order,inToken);
+
+      }
+
+      output.push(`${outToken}に代打、${inToken}`);
 
       return;
 
     }
 
-    const sub=line.match(/(.+?)手の(.+?)を(.+?)に交代/);
+    // 代走
+    m=line.match(/^(一塁|二塁|三塁)走者(.+?)に代走、(.+?)！?$/);
 
-    if(sub){
+    if(m){
 
-      const[,pos,outPlayer,inPlayer]=sub;
+      const[,,outToken,inToken]=m;
+      const side=battingSideOf(half);
 
-      if(stayMap[outPlayer]){
+      const outPlayer=findPlayerByToken(side,outToken);
 
-        output.push(
+      if(outPlayer){
 
-          `${outPlayer}に代わり${inPlayer}が${pos}`
+        substitutePlayer(side,outPlayer.order,inToken);
 
-        );
+      }
 
-        delete stayMap[outPlayer];
+      const runnerIdx=gameState.runners.indexOf(outToken);
 
-      }else{
+      if(runnerIdx!==-1){
 
-        output.push(
+        gameState.runners[runnerIdx]=inToken;
+        setRunners([...gameState.runners]);
 
-          `${outPlayer}に代わり${inPlayer}が${pos}`
+      }
 
-        );
+      output.push(`${m[1]}走者${outToken}に代走、${inToken}`);
+
+      return;
+
+    }
+
+    // 代打・代走で出た選手が、そのまま守備につく
+    const stay=line.match(/代(?:打|走)で出た(.+?)、そのまま(.+?)手の守備につく/);
+
+    if(stay){
+
+      const[,token,pos]=stay;
+      const side=fieldingSideOf(half);
+
+      stayMap[token]=pos;
+
+      const player=findPlayerByToken(side,token);
+
+      if(player){
+
+        updatePosition(side,player.order,pos);
 
       }
 
@@ -706,37 +953,83 @@ function buildDefenseCard(lines){
 
     }
 
-    const move=line.match(/(.+?)を(.+?)手に守備位置変更/);
+    // 守備の選手交代(ベンチから新しい選手)
+    const sub=line.match(/(.+?)手の(.+?)を(.+?)に交代/);
 
-    if(move){
+    if(sub){
 
-      output.push(
+      const[,pos,outToken,inToken]=sub;
+      const side=fieldingSideOf(half);
 
-        `${move[1]}　${move[2]}へ`
+      const outPlayer=findPlayerByToken(side,outToken);
 
-      );
+      if(outPlayer){
+
+        substitutePlayer(side,outPlayer.order,inToken);
+
+      }
+
+      delete stayMap[outToken];
+
+      output.push(`${outToken}に代わり${inToken}が${pos}`);
 
       return;
 
     }
 
+    // 守備位置変更(同じ選手のまま)
+    const move=line.match(/(.+?)を(.+?)手に守備位置変更/);
+
+    if(move){
+
+      const[,token,pos]=move;
+      const side=fieldingSideOf(half);
+
+      const player=findPlayerByToken(side,token);
+
+      if(player){
+
+        updatePosition(side,player.order,pos);
+
+      }
+
+      output.push(`${token}　${pos}へ`);
+
+      return;
+
+    }
+
+    // 登板(投手交代)
     const pitcher=line.match(/(.+?)に代え、(.+?)が登板/);
 
     if(pitcher){
 
-      output.push(
+      const[,outToken,inToken]=pitcher;
+      const side=fieldingSideOf(half);
 
-        `${pitcher[1]}に代わり${pitcher[2]}が登板`
+      const outPlayer=findPlayerByToken(side,outToken);
 
-      );
+      if(outPlayer){
+
+        const inPlayer=substitutePlayer(side,outPlayer.order,inToken);
+
+        if(inPlayer){
+
+          updatePosition(side,inPlayer.order,"投");
+
+        }
+
+      }
+
+      output.push(`${outToken}に代わり${inToken}が登板`);
 
     }
 
   });
 
-  Object.entries(stayMap).forEach(([player,pos])=>{
+  Object.entries(stayMap).forEach(([token,pos])=>{
 
-  output.push(`${player}　${pos}へ`);
+    output.push(`${token}　${pos}へ`);
 
   });
 
@@ -749,7 +1042,6 @@ function buildDefenseCard(lines){
     snapshot:createSnapshot()
 
   };
-
 
 }
 
