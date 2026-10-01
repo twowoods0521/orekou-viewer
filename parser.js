@@ -43,7 +43,7 @@ async function loadGame(url){
 
   }catch(error){
 
-    alert("試合データを取得できませんでした");
+    alert("試合データを取得できませんでした" + error.message);
 
     console.error(error);
 
