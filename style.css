@@ -51,7 +51,7 @@ body{
 .team span:last-child{
   font-size:34px;
   font-weight:600;
-  color:#0b5d3b;
+  color:#005500;
 }
 
 .game-center{
@@ -91,7 +91,7 @@ body{
   padding:11px 16px;
   border:none;
   border-radius:6px;
-  background:#0b5d3b;
+  background:#005500;
   color:white;
   font-weight:600;
 }
@@ -133,14 +133,14 @@ body{
 }
 
 #scoreboard thead th{
-  background:#0b5d3b;
+  background:#005500;
   color:white;
   font-weight:600;
 }
 
 #scoreboard tbody th{
   background:#f8faf9;
-  color:#0b5d3b;
+  color:#005500;
   font-weight:600;
 }
 
@@ -261,9 +261,9 @@ body{
 }
 
 .control-btn.next{
-  background:#0b5d3b;
+  background:#005500;
   color:white;
-  border-color:#0b5d3b;
+  border-color:#005500;
 }
 
 
@@ -330,7 +330,7 @@ body{
 
     transform:scale(1.18);
 
-    color:#0b5d3b;
+    color:#005500;
 
   }
 
@@ -349,7 +349,7 @@ body{
 
   background:#e7f3ec !important;
   font-weight:700;
-  color:#0b5d3b;
+  color:#005500;
 
   transition:background .18s ease;
 
@@ -357,7 +357,7 @@ body{
 
 .current-inning-header{
 
-  background:#156a47 !important;
+  background:#0a620c !important;
 }
 
 /* ==============================
@@ -384,7 +384,7 @@ body{
   font-size:22px;
   font-weight:600;
 
-  color:#0b5d3b;
+  color:#005500;
 
   margin-bottom:16px;
 
@@ -410,7 +410,7 @@ body{
 .opening-team-title{
 
   font-weight:600;
-  color:#0b5d3b;
+  color:#005500;
 
   margin-bottom:8px;
 
@@ -453,5 +453,144 @@ body{
     grid-template-columns:1fr;
 
   }
+
+}
+
+/* ==============================
+   スタメン表(本格版・打/守/調/才/選手/投/打)
+============================== */
+
+.lineup-table{
+
+  width:100%;
+  border-collapse:collapse;
+  border:2px solid #005500;
+
+}
+
+.lineup-table th,
+.lineup-table td{
+
+  border:1px solid #cfe0d3;
+  text-align:center;
+  padding:5px 3px;
+  font-size:13px;
+
+}
+
+.lineup-table thead th{
+
+  background:#005500;
+  color:white;
+  font-weight:600;
+
+}
+
+.lineup-table td.lineup-pos{
+
+  color:#374151;
+  font-weight:600;
+
+}
+
+.lineup-table td.lineup-name{
+
+  text-align:left;
+  white-space:nowrap;
+  font-weight:600;
+
+}
+
+.lineup-table td.lineup-bench-mark{
+
+  color:#9ca3af;
+
+}
+
+/* ==============================
+   レア度(才)表示
+============================== */
+
+.rarity{
+
+  font-weight:700;
+  font-size:13px;
+  -webkit-text-stroke:0.6px #000;
+
+}
+
+.rarity-lr{ color:#d62828; }
+.rarity-ur{ color:#f59e0b; }
+.rarity-sr{ color:#eab308; }
+.rarity-r{  color:#38bdf8; }
+.rarity-n{  color:#ffffff; }
+
+/* ==============================
+   調子(調)表示:色つきドット
+============================== */
+
+.condition-dot{
+
+  display:inline-block;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  border:1px solid rgba(0,0,0,.25);
+
+}
+
+.condition-great{  background:#ff8fc7; }  /* 絶好調 */
+.condition-good{   background:#e63946; }  /* 好調   */
+.condition-normal{ background:#f4d35e; }  /* 平常   */
+.condition-bad{    background:#48cae4; }  /* 不調   */
+.condition-worst{  background:#9d4edd; }  /* 絶不調 */
+.condition-rest{   background:#adb5bd; }  /* 静養   */
+
+/* ==============================
+   打者紹介カード:選手情報
+============================== */
+
+.batter-info{
+
+  display:flex;
+  align-items:baseline;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:6px;
+
+}
+
+.batter-order,
+.batter-rarity,
+.batter-name{
+
+  font-size:24px;
+  font-weight:700;
+
+}
+
+.batter-meta{
+
+  font-size:13px;
+  font-weight:500;
+  color:#6b7280;
+
+}
+
+/* ==============================
+   リンク(チーム名・選手名)
+============================== */
+
+a{
+
+  color:inherit;
+  text-decoration:none;
+
+}
+
+a:hover,
+a:active{
+
+  text-decoration:underline;
 
 }
