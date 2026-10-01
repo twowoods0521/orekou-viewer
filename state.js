@@ -297,3 +297,50 @@ function getCurrentCard(){
   return gameState.cards[gameState.currentCard];
 
 }
+
+// ==============================
+// 試合読込時のリセット
+// ==============================
+
+function resetGameState(){
+
+  gameState.currentCard=0;
+  gameState.cards=[];
+
+  gameState.inning=1;
+  gameState.half="top";
+  gameState.maxInning=9;
+
+  gameState.outs=0;
+  gameState.runners=[];
+
+  gameState.isFinished=false;
+
+  gameState.scoreboard={};
+
+  gameState.firstCard={
+    top:{},
+    bottom:{}
+  };
+
+}
+
+// ==============================
+// カード用スナップショット生成
+// ==============================
+
+function createSnapshot(){
+
+  return{
+
+    scoreboard:structuredClone(gameState.scoreboard),
+    inning:gameState.inning,
+    half:gameState.half,
+    outs:gameState.outs,
+    runners:[...gameState.runners],
+    score:getCurrentScore(),
+    isFinished:gameState.isFinished
+
+  };
+
+}

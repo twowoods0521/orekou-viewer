@@ -236,6 +236,13 @@ const SPECIAL_RULES = [
     outs:1
   },
 
+  {
+    match:"牽制死",
+    type:"pickoff",
+    outs:1,
+    removeRearRunner:true
+  },
+
   // ===== 交代 =====
 
   {
