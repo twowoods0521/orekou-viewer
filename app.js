@@ -1,190 +1,7 @@
 // ==============================
 // app.js
-// 仮ビューア
+// ビューア本体
 // ==============================
-
-// ------------------------------
-// 仮データ
-// ------------------------------
-
-initializeScoreboard(9);
-
-// ------------------------------
-// サンプルスタメン
-// parser.js完成後はオーダーから自動生成
-// ------------------------------
-
-const sampleAwayLineup = [
-  {order:1,pos:"中",name:"近藤"},
-  {order:2,pos:"二",name:"小栗"},
-  {order:3,pos:"左",name:"菅原"},
-  {order:4,pos:"一",name:"藤本"},
-  {order:5,pos:"捕",name:"松岡"},
-  {order:6,pos:"右",name:"関谷"},
-  {order:7,pos:"三",name:"倉林"},
-  {order:8,pos:"投",name:"田山"},
-  {order:9,pos:"遊",name:"結崎"}
-];
-
-const sampleHomeLineup = [
-  {order:1,pos:"中",name:"西川"},
-  {order:2,pos:"遊",name:"吉留"},
-  {order:3,pos:"左",name:"伊藤"},
-  {order:4,pos:"一",name:"山田"},
-  {order:5,pos:"捕",name:"中村"},
-  {order:6,pos:"右",name:"佐藤"},
-  {order:7,pos:"三",name:"高橋"},
-  {order:8,pos:"投",name:"鈴木"},
-  {order:9,pos:"二",name:"森"}
-];
-
-const sampleCards = [
-
-  {
-    type:"start",
-    snapshot:{
-      scoreboard:structuredClone(gameState.scoreboard),
-      inning:1,
-      half:"top",
-      outs:0,
-      runners:[],
-      score:{away:0,home:0}
-    }
-  },
-
-  {
-    type:"batter",
-    title:"1番：近藤",
-    history:"",
-    snapshot:{
-      scoreboard:structuredClone(gameState.scoreboard),
-      inning:1,
-      half:"top",
-      outs:0,
-      runners:[],
-      score:{away:0,home:0}
-    }
-  }
-
-];
-
-startHalf(1,"top");
-addHit("away");
-setRunners(["近藤"]);
-
-sampleCards.push({
-  type:"result",
-  text:[
-    "近藤がレフト前ヒット。"
-  ],
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:1,
-    half:"top",
-    outs:0,
-    runners:["近藤"],
-    score:getCurrentScore()
-  }
-});
-
-setOuts(1);
-setRunners(["小栗"]);
-
-sampleCards.push({
-  type:"result",
-  text:[
-    "小栗が送りバント。",
-    "1アウト"
-  ],
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:1,
-    half:"top",
-    outs:1,
-    runners:["小栗"],
-    score:getCurrentScore()
-  }
-});
-
-addRuns("away",1);
-
-sampleCards.push({
-  type:"result",
-  text:[
-    "菅原がセンター前ヒット。",
-    "小栗が生還し1点。",
-    "結崎1-0西西"
-  ],
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:1,
-    half:"top",
-    outs:1,
-    runners:["菅原"],
-    score:getCurrentScore()
-  }
-});
-
-sampleCards.push({
-  type:"steal",
-  text:["菅原が盗塁成功。"],
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:1,
-    half:"top",
-    outs:1,
-    runners:["菅原"],
-    score:getCurrentScore()
-  }
-});
-
-sampleCards.push({
-  type:"defense",
-  text:[
-    "田山に代わり藤島が中堅",
-    "藤本　遊撃へ",
-    "菅原　左翼へ"
-  ],
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:2,
-    half:"bottom",
-    outs:0,
-    runners:[],
-    score:getCurrentScore()
-  }
-});
-
-finishGame();
-
-sampleCards.push({
-  type:"end",
-  snapshot:{
-    scoreboard:structuredClone(gameState.scoreboard),
-    inning:gameState.inning,
-    half:gameState.half,
-    outs:3,
-    runners:[],
-    score:getCurrentScore(),
-    isFinished:true
-  }
-});
-
-setCards(sampleCards);
-// ------------------------------
-// サンプル用ジャンプ位置
-// （parser.js完成後は自動生成される）
-// ------------------------------
-
-gameState.firstCard.top = {
-  1: 0,
-  2: 6
-};
-
-gameState.firstCard.bottom = {
-  1: 5,
-  2: 6
-};
 
 // ------------------------------
 // DOM
@@ -195,58 +12,182 @@ const prevBtn=document.getElementById("prev-btn");
 const nextBtn=document.getElementById("next-btn");
 
 // ------------------------------
-// 描画
+// 描画用の状態
 // ------------------------------
 
 let lockFinalScore=false;
+let previousScore=null;
+
+// ------------------------------
+// 補助関数
+// ------------------------------
+
+function conditionClass(form){
+
+  switch(form){
+    case"絶好調": return"condition-great";
+    case"好調":   return"condition-good";
+    case"平常":   return"condition-normal";
+    case"不調":   return"condition-bad";
+    case"絶不調": return"condition-worst";
+    case"静養":   return"condition-rest";
+    default:      return"condition-normal";
+  }
+
+}
+
+function rarityClass(rarity){
+
+  return "rarity-"+(rarity||"").toLowerCase();
+
+}
+
+function splitHand(hand){
+
+  const m=(hand||"").match(/^(.+?)投(.+?)打$/);
+
+  if(!m)return{throwHand:"",batHand:""};
+
+  return{throwHand:m[1],batHand:m[2]};
+
+}
+
+function renderPlayerLink(name,url){
+
+  if(url){
+
+    return `<a href="${url}" target="_blank" rel="noopener">${name}</a>`;
+
+  }
+
+  return name;
+
+}
+
+function renderLineupTable(lineup){
+
+  const rows=(lineup||[]).map(player=>{
+
+    const hand=splitHand(player.hand);
+
+    return `
+      <tr>
+        <td>${player.order}</td>
+        <td class="lineup-pos">${player.currentPosition||player.pos}</td>
+        <td><span class="condition-dot ${conditionClass(player.form)}"></span></td>
+        <td class="rarity ${rarityClass(player.rarity)}">${player.rarity}</td>
+        <td class="lineup-name">${renderPlayerLink(player.name,player.url)}</td>
+        <td>${hand.throwHand}</td>
+        <td>${hand.batHand}</td>
+      </tr>
+    `;
+
+  }).join("");
+
+  return `
+    <table class="lineup-table">
+      <thead>
+        <tr><th>打</th><th>守</th><th>調</th><th>才</th><th>選手</th><th>投</th><th>打</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `;
+
+}
+
+// ------------------------------
+// ヘッダーのチーム名更新
+// ------------------------------
+
+function updateTeamHeader(){
+
+  const awayNameEl=document.getElementById("away-name");
+  const homeNameEl=document.getElementById("home-name");
+
+  if(awayNameEl){
+
+    awayNameEl.innerHTML=renderPlayerLink(gameData.away.teamName||"",gameData.away.teamUrl);
+
+  }
+
+  if(homeNameEl){
+
+    homeNameEl.innerHTML=renderPlayerLink(gameData.home.teamName||"",gameData.home.teamUrl);
+
+  }
+
+}
+
+// ------------------------------
+// 得点強調(score-pop)
+// ------------------------------
+
+function flashScore(el){
+
+  if(!el)return;
+
+  el.classList.remove("score-pop");
+  void el.offsetWidth;
+  el.classList.add("score-pop");
+
+}
+
+function triggerScorePop(snap){
+
+  if(previousScore){
+
+    if(snap.score.away!==previousScore.away){
+
+      flashScore(document.getElementById("away-score"));
+
+    }
+
+    if(snap.score.home!==previousScore.home){
+
+      flashScore(document.getElementById("home-score"));
+
+    }
+
+  }
+
+  previousScore={...snap.score};
+
+}
+
+// ------------------------------
+// 描画
+// ------------------------------
 
 function renderCard(){
 
   const card=getCurrentCard();
+
+  if(!card)return;
+
   const snap=lockFinalScore
     ? gameState.cards.at(-1).snapshot
     : card.snapshot;
 
+  updateTeamHeader();
   updateStatus(snap);
   renderScoreboard(snap);
+  triggerScorePop(snap);
 
   if(card.type==="start"){
-
-    const awayRows = sampleAwayLineup.map(player=>`
-      <tr>
-        <td>${player.order}</td>
-        <td>${player.pos}</td>
-        <td>${player.name}</td>
-      </tr>
-    `).join("");
-
-    const homeRows = sampleHomeLineup.map(player=>`
-      <tr>
-        <td>${player.order}</td>
-        <td>${player.pos}</td>
-        <td>${player.name}</td>
-      </tr>
-    `).join("");
 
     cardContainer.innerHTML=`
 
       <div class="card-type">試合開始</div>
 
-      <h2>結崎 vs 西西</h2>
-
-      <div class="opening-subtitle">
-
-        練習試合
-
-      </div>
+      <h2>${renderPlayerLink(gameData.away.teamName||"",gameData.away.teamUrl)} vs ${renderPlayerLink(gameData.home.teamName||"",gameData.home.teamUrl)}</h2>
 
       <div class="opening-score">
 
-        <span>結崎</span>
+        <span>${gameData.away.teamName||""}</span>
 
         <span>${snap.score.away} - ${snap.score.home}</span>
 
-        <span>西西</span>
+        <span>${gameData.home.teamName||""}</span>
 
       </div>
 
@@ -254,41 +195,17 @@ function renderCard(){
 
         <div class="opening-team">
 
-          <div class="opening-team-title">
+          <div class="opening-team-title">先攻　${gameData.away.teamName||""}</div>
 
-            先攻　結崎
-
-          </div>
-
-          <table class="order-table">
-
-            <tbody>
-
-              ${awayRows}
-
-            </tbody>
-
-          </table>
+          ${renderLineupTable(card.awayLineup)}
 
         </div>
 
         <div class="opening-team">
 
-          <div class="opening-team-title">
+          <div class="opening-team-title">後攻　${gameData.home.teamName||""}</div>
 
-            後攻　西西
-
-          </div>
-
-          <table class="order-table">
-
-            <tbody>
-
-              ${homeRows}
-
-            </tbody>
-
-          </table>
+          ${renderLineupTable(card.homeLineup)}
 
         </div>
 
@@ -300,10 +217,48 @@ function renderCard(){
 
   if(card.type==="batter"){
 
+    const player=card.player;
+
+    const orderLabel=player
+      ? (player.isSubstitute ? "代打" : `${player.order}番`)
+      : card.title;
+
+    const rarityHtml=player
+      ? `<span class="batter-rarity rarity ${rarityClass(player.rarity)}">${player.rarity}</span>`
+      : "";
+
+    const nameHtml=player
+      ? renderPlayerLink(player.name,player.url)
+      : card.title;
+
+    const hand=splitHand(player?.hand);
+
+    const metaHtml=player
+      ? `<span class="batter-meta">${hand.throwHand}投${hand.batHand}打・<span class="condition-dot ${conditionClass(player.form)}" style="vertical-align:-2px;"></span></span>`
+      : "";
+
+    const runnerText=snap.runners.length
+      ? snap.runners.join("・")
+      : "なし";
+
     cardContainer.innerHTML=`
+
       <div class="card-type">打者</div>
-      <h2>${card.title}</h2>
-      <div class="batter-history">${card.history}</div>
+
+      <div class="batter-info">
+
+        <span class="batter-order">${orderLabel}</span>
+
+        ${rarityHtml}
+
+        <span class="batter-name">${nameHtml}</span>
+
+        ${metaHtml}
+
+      </div>
+
+      <div style="font-size:15px;color:#6b7280;">走者:${runnerText}</div>
+
     `;
 
   }
@@ -321,6 +276,15 @@ function renderCard(){
 
     cardContainer.innerHTML=`
       <div class="card-type">盗塁</div>
+      <p>${card.text.join("<br>")}</p>
+    `;
+
+  }
+
+  if(card.type==="pickoff"){
+
+    cardContainer.innerHTML=`
+      <div class="card-type">牽制</div>
       <p>${card.text.join("<br>")}</p>
     `;
 
@@ -388,9 +352,8 @@ function renderScoreboard(snapshot){
   const awayRow=document.getElementById("away-score-row");
   const homeRow=document.getElementById("home-score-row");
 
-
-  awayRow.innerHTML=`<th>${document.getElementById("away-name").textContent}</th>`;
-  homeRow.innerHTML=`<th>${document.getElementById("home-name").textContent}</th>`;
+  awayRow.innerHTML=`<th>${renderPlayerLink(gameData.away.teamNameShort||"",gameData.away.teamUrl)}</th>`;
+  homeRow.innerHTML=`<th>${renderPlayerLink(gameData.home.teamNameShort||"",gameData.home.teamUrl)}</th>`;
 
   // ---------- イニング ----------
 
@@ -452,6 +415,9 @@ function getScoreboardDisplayFromSnapshot(snapshot,inning,half){
 
     case "done":
       return String(cell.runs);
+
+    case "skip":
+      return "×";
 
     case "walkoff":
 
@@ -520,8 +486,6 @@ function updateStatus(snap){
   const lights=document.querySelectorAll(".light");
 
   lights.forEach((light,index)=>{
-    document.getElementById("out-text").textContent =
-  `${snap.outs} OUT`;
 
     light.classList.toggle("on",index<snap.outs);
 
@@ -593,6 +557,7 @@ function highlightCurrentInning(snapshot){
   }
 
 }
+
 // ------------------------------
 // ボタン
 // ------------------------------
@@ -615,5 +580,3 @@ nextBtn.onclick=()=>{
   renderCard();
 
 };
-
-renderCard();
