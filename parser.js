@@ -3,7 +3,7 @@
 // 俺の甲子園 パーサー
 // ==============================
 
-const WORKER_URL="https://woods0521.workers.dev/?url=";
+const WORKER_URL="https://orekou-proxy.twowoods0521.workers.dev/?url=";
 
 // ------------------------------
 // URL読込
