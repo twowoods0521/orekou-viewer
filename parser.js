@@ -3,7 +3,7 @@
 // 俺の甲子園 パーサー
 // ==============================
 
-const WORKER_URL="https://orekou-proxy.twowoods0521.workers.dev/?url=";
+const WORKER_URL="https://woods0521.workers.dev/?url=";
 
 // ------------------------------
 // URL読込
@@ -21,6 +21,12 @@ async function loadGame(url){
     const html=await fetchGameHTML(url);
 
     const matchData=parseGameHTML(html,url);
+
+    alert(JSON.stringify({
+      playByPlayCount: matchData.playByPlay.length,
+      playByPlaySample: matchData.playByPlay.slice(0,3),
+      conditionCellHTML: matchData.awayLineup[0]?.form
+    },null,2));
 
     gameData.away.teamName=matchData.teamNames.away?.name||"";
     gameData.away.teamNameShort=shortenTeamName(gameData.away.teamName);
@@ -132,8 +138,6 @@ function parseGameInfo(doc){
 
 // ------------------------------
 // チーム名(行政区分・学校種別を除いた略称)+ リンク
-// 得点結果の「◯◯ 数字 - 数字 ◯◯」の行にある
-// 直近の2つのaタグをチーム名として取得する
 // ------------------------------
 
 function parseTeamNames(doc){
@@ -199,6 +203,9 @@ function parseScoreboard(doc){
 
   const teams=["away","home"];
 
+  // 「×」の表記ゆれを判定する
+  const isSkipMark=text=>/^[x]$/.test(text);
+
   rows.slice(1,3).forEach((row,index)=>{
 
     const rawCells=[...row.querySelectorAll("td")];
@@ -210,54 +217,28 @@ function parseScoreboard(doc){
 
     const team=teams[index];
 
+    // この「試合結果」表はすでに終わった試合の最終結果なので、
+    // ここで全マスを埋めてしまうと、カードをめくる前から
+    // 結果が見えてしまう。「未実施(×)」のマスだけをここで確定させ、
+    // それ以外(実際にプレーされた回)は試合経過の再現(カードめくり)
+    // に合わせて進行していくため、あえて触らない。
+
     for(let i=1;i<=inningCount;i++){
 
       const text=cells[i-1]?.textContent.trim()||"";
 
-      const cell=gameState.scoreboard[i][team==="away"?"top":"bottom"];
+      if(isSkipMark(text)){
 
-      if(text===""){
-
-        cell.status="pending";
-
-      }else if(text==="×"){
+        const cell=gameState.scoreboard[i][team==="away"?"top":"bottom"];
 
         cell.status="skip";
         cell.runs=0;
-
-      }else if(text.endsWith("×")){
-
-        cell.status="walkoff";
-        cell.runs=Number(text.replace("×",""));
-
-        if(i>gameState.maxInning){
-
-          gameState.maxInning=i;
-
-        }
-
-      }else{
-
-        cell.status="done";
-        cell.runs=Number(text);
 
       }
 
     }
 
-    const total=cells.slice(-3);
-
-    gameState.scoreboard.total[team]={
-
-      R:Number(total[0]?.textContent||0),
-      H:Number(total[1]?.textContent||0),
-      E:Number(total[2]?.textContent||0)
-
-    };
-
   });
-
-  return structuredClone(gameState.scoreboard);
 
 }
 
@@ -354,8 +335,6 @@ function parsePlayByPlay(doc){
 
     const text=node.textContent.trim();
 
-    // 「戦評」「個人成績」「オーダー」のいずれかの見出しが来たら
-    // そこで打ち切る(この見出し行自体はlinesに含めない)
     if(/^(戦評|個人成績|オーダー)/.test(text)){
 
       break;
@@ -414,7 +393,7 @@ function buildCards(matchData){
   });
 
   const plateBuffer=[];
-  const defenseBuffer=[]; // { line, half } の配列
+  const defenseBuffer=[];
 
   const flushPlate=()=>{
 
@@ -438,10 +417,6 @@ function buildCards(matchData){
 
   for(const line of matchData.playByPlay){
 
-    // --------------------------
-    // イニング見出し
-    // --------------------------
-
     const header=parseInningHeader(line);
 
     if(header){
@@ -455,10 +430,6 @@ function buildCards(matchData){
 
     }
 
-    // --------------------------
-    // 守備交代・代打・代走の宣言
-    // --------------------------
-
     const special=extractSpecial(line);
 
     if(
@@ -468,15 +439,10 @@ function buildCards(matchData){
       [
 
         "pinchHitter",
-
         "pinchRunner",
-
         "stayDefense",
-
         "positionSub",
-
         "positionChange",
-
         "pitcherChange"
 
       ].includes(special.type)
@@ -495,10 +461,6 @@ function buildCards(matchData){
 
     }
 
-    // --------------------------
-    // 打席バッファ
-    // --------------------------
-
     if(isNewBatter(line)&&plateBuffer.length){
 
       flushPlate();
@@ -512,7 +474,6 @@ function buildCards(matchData){
   flushPlate();
   flushDefense();
 
-  // 3アウトを待たずに試合経過が終わっている場合はサヨナラ
   finishGame({walkoff:!lastHalfChanged});
 
   cards.push({
@@ -603,7 +564,6 @@ function finalizePlateAppearance(lines,baseIndex){
 
   registerJump(baseIndex+cards.length-1);
 
-  // 得点は打席全体を通して先に集計しておく(満塁ゲッツーの判定に使うため)
   const totalScore=events
 
     .filter(e=>e.type==="score")
@@ -618,7 +578,7 @@ function finalizePlateAppearance(lines,baseIndex){
 
   const steals=[];
   const pickoffs=[];
-  const extraEvents=[]; // 盗塁・牽制死など、打者本人以外に影響するイベント
+  const extraEvents=[];
 
   for(const event of events){
 
@@ -660,7 +620,6 @@ function finalizePlateAppearance(lines,baseIndex){
 
       case"doublePlay":{
 
-        // 満塁かつこの打席で得点が無い場合のみ、前の走者(三塁走者)を消す
         const useFrontRunner=runnersAtStart===3&&totalScore===0;
 
         result={
@@ -724,10 +683,8 @@ function finalizePlateAppearance(lines,baseIndex){
 
   }
 
-  // 打者本人の結果を適用
   applyEventToState(result,rawToken);
 
-  // 盗塁・牽制死など、打者以外に影響するイベントを順番に適用
   extraEvents.forEach(event=>{
 
     applyEventToState(event,null);
@@ -883,7 +840,6 @@ function buildDefenseCard(entries){
 
   entries.forEach(({line,half})=>{
 
-    // 代打
     let m=line.match(/^(.+?)に代打、(.+?)！?$/);
 
     if(m){
@@ -905,7 +861,6 @@ function buildDefenseCard(entries){
 
     }
 
-    // 代走
     m=line.match(/^(一塁|二塁|三塁)走者(.+?)に代走、(.+?)！?$/);
 
     if(m){
@@ -936,7 +891,6 @@ function buildDefenseCard(entries){
 
     }
 
-    // 代打・代走で出た選手が、そのまま守備につく
     const stay=line.match(/代(?:打|走)で出た(.+?)、そのまま(.+?)手の守備につく/);
 
     if(stay){
@@ -958,7 +912,6 @@ function buildDefenseCard(entries){
 
     }
 
-    // 守備の選手交代(ベンチから新しい選手)
     const sub=line.match(/(.+?)手の(.+?)を(.+?)に交代/);
 
     if(sub){
@@ -982,7 +935,6 @@ function buildDefenseCard(entries){
 
     }
 
-    // 守備位置変更(同じ選手のまま)
     const move=line.match(/(.+?)を(.+?)手に守備位置変更/);
 
     if(move){
@@ -1004,7 +956,6 @@ function buildDefenseCard(entries){
 
     }
 
-    // 登板(投手交代)
     const pitcher=line.match(/(.+?)に代え、(.+?)が登板/);
 
     if(pitcher){
