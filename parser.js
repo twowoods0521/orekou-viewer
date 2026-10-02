@@ -201,7 +201,12 @@ function parseScoreboard(doc){
 
   rows.slice(1,3).forEach((row,index)=>{
 
-    const cells=[...row.querySelectorAll("td")];
+    const rawCells=[...row.querySelectorAll("td")];
+
+    // 1列目がチーム名(数字でない)の場合は1列ずらして読む
+    const offset=/^\d+$/.test(rawCells[0]?.textContent.trim()||"") ? 0 : 1;
+
+    const cells=rawCells.slice(offset);
 
     const team=teams[index];
 
