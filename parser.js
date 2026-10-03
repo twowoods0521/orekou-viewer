@@ -4,7 +4,7 @@
 // ==============================
 
 const WORKER_URL="https://orekou-proxy.twowoods0521.workers.dev/?url=";
-// ↑お使いの正しいWorker URLを維持してください
+// ↑お使いの正しいWorker URLのまま維持してください
 
 // ------------------------------
 // URL読込
@@ -154,8 +154,6 @@ function parseGameInfo(doc){
 
 // ------------------------------
 // チーム名(行政区分・学校種別を除いた略称)+ リンク
-// 得点結果の「◯◯ 数字 - 数字 ◯◯」の行にある
-// 直近の2つのaタグをチーム名として取得する
 // ------------------------------
 
 function parseTeamNames(doc){
@@ -221,7 +219,7 @@ function parseScoreboard(doc){
 
   const teams=["away","home"];
 
-  // 「未実施(x)」の判定
+  // 「未実施(x)」の判定。実際のサイトでは半角小文字の x が使われている
   const isSkipMark=text=>text==="x";
 
   rows.slice(1,3).forEach((row,index)=>{
@@ -609,11 +607,11 @@ function isNewBatter(line){
   }
 
   if(/生還し|進塁|タッチアップ|動けず/.test(line)){
-    return false;
+  return false;
   }
 
-  // 「エラー」「フィルダースチョイス」は守備側選手の名前が主語になる行、
-  // 「盗塁」「牽制死」は既に出塁している走者の名前が主語になる行であり、
+  // 盗塁・牽制死は、既に出塁している走者の出来事であり新しい打者ではない
+  // 「エラー」「フィルダースチョイス」は守備側選手の名前が主語になる行で、
   // どちらも新しい打者の登場ではなく、進行中の打席の続きとして扱う。
   if(/エラー|フィルダースチョイス|盗塁成功|盗塁失敗|三盗成功|三盗失敗|牽制死/.test(line)){
     return false;

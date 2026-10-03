@@ -71,9 +71,11 @@ function startHalf(inning,half){
   gameState.inning=inning;
   gameState.half=half;
 
-  const cell=gameState.scoreboard[inning][half];
+  // 万一inningが得点板の範囲外になっても、ここで例外を投げて
+  // 画面全体が止まってしまわないようにする(念のための安全策)
+  const cell=gameState.scoreboard[inning]?.[half];
 
-  if(cell.status==="pending"){
+  if(cell&&cell.status==="pending"){
 
     cell.status="live";
 
@@ -184,63 +186,23 @@ function finishGame({walkoff=false}={}){
 
   gameState.isFinished=true;
 
-  const cell=gameState.scoreboard[gameState.inning][gameState.half];
+  // 「最終回裏が未実施ならx」の判定は、parseScoreboard()が
+  // 試合結果表から直接読み取って既に反映済みのため、ここでは行わない。
 
-  if(walkoff){
+  const cell=gameState.scoreboard[gameState.inning]?.[gameState.half];
 
-    // 例：9回裏 5x
-    cell.status="walkoff";
+  if(cell){
 
-  }else{
+    if(walkoff){
 
-    if(cell.status==="live"){
+      // 例：9回裏 5x
+      cell.status="walkoff";
+
+    }else if(cell.status==="live"){
 
       cell.status="done";
 
     }
-
-    // 最終回裏未実施なら x
-    if(gameState.half==="top"){
-
-      gameState.scoreboard[gameState.inning].bottom.status="walkoff";
-
-    }
-
-  }
-
-}
-
-// ==============================
-// 得点板表示
-// ==============================
-
-function getScoreboardDisplay(inning,half){
-
-  const cell=gameState.scoreboard[inning][half];
-
-  switch(cell.status){
-
-    case "pending":
-      return "";
-
-    case "live":
-      return cell.runs===0 ? "-" : String(cell.runs);
-
-    case "done":
-      return String(cell.runs);
-
-    case "walkoff":
-
-      if(half==="bottom"){
-
-        return `${cell.runs}x`;
-
-      }
-
-      return String(cell.runs);
-
-    default:
-      return "";
 
   }
 
