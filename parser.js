@@ -4,6 +4,7 @@
 // ==============================
 
 const WORKER_URL="https://orekou-proxy.twowoods0521.workers.dev/?url=";
+// ↑お使いの正しいWorker URLを維持してください
 
 // ------------------------------
 // URL読込
@@ -77,6 +78,27 @@ async function fetchGameHTML(url){
   }
 
   return await res.text();
+
+}
+
+// ------------------------------
+// 相対パスのリンクをorekou.net基準の絶対URLに変換する
+// (このビューア自身のドメインを基準に解決されてしまうのを防ぐ)
+// ------------------------------
+
+function resolveOrekouUrl(href){
+
+  if(!href)return"";
+
+  try{
+
+    return new URL(href,"https://orekou.net").href;
+
+  }catch{
+
+    return href;
+
+  }
 
 }
 
@@ -162,12 +184,12 @@ function parseTeamNames(doc){
 
     away:{
       name:links[0]?.textContent.trim()||"",
-      url:links[0]?.getAttribute("href")||""
+      url:resolveOrekouUrl(links[0]?.getAttribute("href"))
     },
 
     home:{
       name:links[1]?.textContent.trim()||"",
-      url:links[1]?.getAttribute("href")||""
+      url:resolveOrekouUrl(links[1]?.getAttribute("href"))
     }
 
   };
@@ -199,7 +221,7 @@ function parseScoreboard(doc){
 
   const teams=["away","home"];
 
-  // 「未実施(×)」の判定。実際のサイトでは半角小文字の x が使われている
+  // 「未実施(x)」の判定
   const isSkipMark=text=>text==="x";
 
   rows.slice(1,3).forEach((row,index)=>{
@@ -319,7 +341,7 @@ function parseLineup(doc,index){
 
       name:nameCell?.textContent.trim()||"",
 
-      url:nameLink?.getAttribute("href")||"",
+      url:resolveOrekouUrl(nameLink?.getAttribute("href")),
 
       hand:`${cells[5]?.textContent.trim()||""}投${cells[6]?.textContent.trim()||""}打`
 
@@ -587,7 +609,14 @@ function isNewBatter(line){
   }
 
   if(/生還し|進塁|タッチアップ|動けず/.test(line)){
-  return false;
+    return false;
+  }
+
+  // 「エラー」「フィルダースチョイス」は守備側選手の名前が主語になる行、
+  // 「盗塁」「牽制死」は既に出塁している走者の名前が主語になる行であり、
+  // どちらも新しい打者の登場ではなく、進行中の打席の続きとして扱う。
+  if(/エラー|フィルダースチョイス|盗塁成功|盗塁失敗|三盗成功|三盗失敗|牽制死/.test(line)){
+    return false;
   }
 
   return /^[^　\s]+が/.test(line);
@@ -639,13 +668,15 @@ function finalizePlateAppearance(lines,baseIndex){
 
   const display=[];
 
-  const steals=[];
-  const pickoffs=[];
-  const extraEvents=[]; // 盗塁・牽制死など、打者本人以外に影響するイベント
-
   for(const event of events){
 
-    display.push(event.text);
+    if(event.type==="score"){
+
+      display.push(event.text);
+
+      continue;
+
+    }
 
     if(event.position){
 
@@ -653,11 +684,123 @@ function finalizePlateAppearance(lines,baseIndex){
 
     }
 
-    if(event.type==="score"){
+    // --------------------------
+    // 盗塁・牽制死:その場でカードを確定して即座に追加する
+    // (守備側/既に出塁している走者の名前が主語になる行なので
+    //  打者の判定には使わず、ここで個別に処理する)
+    // --------------------------
+
+    if(
+
+      ["steal","caughtStealing","stealThird","caughtStealingThird"].includes(event.type)
+
+    ){
+
+      const runnerToken=event.text.match(/^(.+?)が/)?.[1]||"";
+
+      if(event.outs){
+
+        setOuts(gameState.outs+event.outs);
+
+        const idx=gameState.runners.indexOf(runnerToken);
+
+        if(idx!==-1){
+
+          gameState.runners.splice(idx,1);
+          setRunners([...gameState.runners]);
+
+        }
+
+        if(gameState.outs>=3){
+
+          changeHalf();
+          lastHalfChanged=true;
+
+        }else{
+
+          lastHalfChanged=false;
+
+        }
+
+      }
+
+      cards.push({
+
+        type:"steal",
+        text:[event.text],
+        snapshot:createSnapshot()
+
+      });
 
       continue;
 
     }
+
+    if(event.type==="pickoff"){
+
+      applyEventToState(event,null);
+
+      cards.push({
+
+        type:"pickoff",
+        text:[event.text],
+        snapshot:createSnapshot()
+
+      });
+
+      continue;
+
+    }
+
+    // --------------------------
+    // エラー:守備側選手の名前が主語の別行になっているケースを含むため、
+    // そのつど「position」(直前の打球の守備位置)を使って判定する
+    // --------------------------
+
+    if(/エラー/.test(event.text)){
+
+      display.push(event.text);
+
+      if(position){
+
+        result={
+
+          type:"error",
+          abbr:position+"失",
+          runner:true,
+          text:event.text
+
+        };
+
+      }
+
+      continue;
+
+    }
+
+    // --------------------------
+    // フィルダースチョイス:同じく守備側選手の名前が主語の
+    // 別行になっているケースを含む
+    // --------------------------
+
+    if(/フィルダースチョイス/.test(event.text)){
+
+      display.push(event.text);
+
+      result={
+
+        type:"fielderChoice",
+        abbr:"野選",
+        runner:true,
+        text:event.text
+
+      };
+
+      continue;
+
+    }
+
+    display.push(event.text);
 
     switch(event.type){
 
@@ -665,20 +808,6 @@ function finalizePlateAppearance(lines,baseIndex){
       case"fly":
       case"line":
         result=event;
-        break;
-
-      case"error":
-        if(position){
-
-          result={
-
-            ...event,
-
-            abbr:position+"失"
-
-          };
-
-        }
         break;
 
       case"doublePlay":{
@@ -711,19 +840,6 @@ function finalizePlateAppearance(lines,baseIndex){
         };
         break;
 
-      case"steal":
-      case"caughtStealing":
-      case"stealThird":
-      case"caughtStealingThird":
-        steals.push(event.text);
-        extraEvents.push(event);
-        break;
-
-      case"pickoff":
-        pickoffs.push(event.text);
-        extraEvents.push(event);
-        break;
-
       default:
         if(!result){
 
@@ -750,13 +866,6 @@ function finalizePlateAppearance(lines,baseIndex){
   // 打者本人の結果を適用
   applyEventToState(result,rawToken);
 
-  // 盗塁・牽制死など、打者以外に影響するイベントを順番に適用
-  extraEvents.forEach(event=>{
-
-    applyEventToState(event,null);
-
-  });
-
   if(batterPlayer){
 
     addPlayerHistory(side,batterPlayer.order,{
@@ -776,34 +885,6 @@ function finalizePlateAppearance(lines,baseIndex){
     result,
 
     snapshot:createSnapshot()
-
-  });
-
-  steals.forEach(text=>{
-
-    cards.push({
-
-      type:"steal",
-
-      text:[text],
-
-      snapshot:createSnapshot()
-
-    });
-
-  });
-
-  pickoffs.forEach(text=>{
-
-    cards.push({
-
-      type:"pickoff",
-
-      text:[text],
-
-      snapshot:createSnapshot()
-
-    });
 
   });
 
