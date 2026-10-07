@@ -23,7 +23,6 @@ let previousScore=null;
 // ------------------------------
 
 function conditionClass(form){
-
   switch(form){
     case"絶好調": return"condition-great";
     case"好調":   return"condition-good";
@@ -33,41 +32,30 @@ function conditionClass(form){
     case"静養":   return"condition-rest";
     default:      return"condition-normal";
   }
-
 }
 
 function rarityClass(rarity){
-
   return "rarity-"+(rarity||"").toLowerCase();
-
 }
 
 function splitHand(hand){
-
   const m=(hand||"").match(/^(.+?)投(.+?)打$/);
 
   if(!m)return{throwHand:"",batHand:""};
 
   return{throwHand:m[1],batHand:m[2]};
-
 }
 
 function renderPlayerLink(name,url){
-
   if(url){
-
     return `<a href="${url}" target="_blank" rel="noopener">${name}</a>`;
-
   }
 
   return name;
-
 }
 
 function renderLineupTable(lineup){
-
   const rows=(lineup||[]).map(player=>{
-
     const hand=splitHand(player.hand);
 
     return `
@@ -92,7 +80,6 @@ function renderLineupTable(lineup){
       <tbody>${rows}</tbody>
     </table>
   `;
-
 }
 
 // ------------------------------
@@ -100,22 +87,16 @@ function renderLineupTable(lineup){
 // ------------------------------
 
 function updateTeamHeader(){
-
   const awayNameEl=document.getElementById("away-name");
   const homeNameEl=document.getElementById("home-name");
 
   if(awayNameEl){
-
     awayNameEl.innerHTML=renderPlayerLink(gameData.away.teamName||"",gameData.away.teamUrl);
-
   }
 
   if(homeNameEl){
-
     homeNameEl.innerHTML=renderPlayerLink(gameData.home.teamName||"",gameData.home.teamUrl);
-
   }
-
 }
 
 // ------------------------------
@@ -123,73 +104,56 @@ function updateTeamHeader(){
 // ------------------------------
 
 function flashScore(el){
-
   if(!el)return;
 
   el.classList.remove("score-pop");
   void el.offsetWidth;
   el.classList.add("score-pop");
-
 }
 
-function triggerScorePop(snap){
-
+function triggerScorePop(scoreSnap){
   if(previousScore){
-
-    if(snap.score.away!==previousScore.away){
-
+    if(scoreSnap.score.away!==previousScore.away){
       flashScore(document.getElementById("away-score"));
-
     }
 
-    if(snap.score.home!==previousScore.home){
-
+    if(scoreSnap.score.home!==previousScore.home){
       flashScore(document.getElementById("home-score"));
-
     }
-
   }
 
-  previousScore={...snap.score};
-
+  previousScore={...scoreSnap.score};
 }
 
 // ------------------------------
 // 描画
+// snap     : 表示中のカードの状況(回・アウト・走者・ハイライト)
+// scoreSnap: 得点板の数字と上部の得点
+//            試合終了のカードを表示した後は、最終結果で固定する
 // ------------------------------
 
 function renderCard(){
-
   const card=getCurrentCard();
 
   if(!card)return;
 
-  const snap=lockFinalScore
+  const snap=card.snapshot;
+
+  const scoreSnap=lockFinalScore
     ? gameState.cards.at(-1).snapshot
-    : card.snapshot;
+    : snap;
 
   updateTeamHeader();
-  updateStatus(snap);
-  renderScoreboard(snap);
-  triggerScorePop(snap);
+  updateStatus(snap,scoreSnap,card);
+  renderScoreboard(scoreSnap,snap,card);
+  triggerScorePop(scoreSnap);
 
   if(card.type==="start"){
-
     cardContainer.innerHTML=`
 
       <div class="card-type">試合開始</div>
 
       <h2>${renderPlayerLink(gameData.away.teamName||"",gameData.away.teamUrl)} vs ${renderPlayerLink(gameData.home.teamName||"",gameData.home.teamUrl)}</h2>
-
-      <div class="opening-score">
-
-        <span>${gameData.away.teamName||""}</span>
-
-        <span>${snap.score.away} - ${snap.score.home}</span>
-
-        <span>${gameData.home.teamName||""}</span>
-
-      </div>
 
       <div class="opening-order">
 
@@ -212,16 +176,15 @@ function renderCard(){
       </div>
 
     `;
-
   }
 
   if(card.type==="batter"){
-
     const player=card.player;
 
+    // 選手が見つからない場合は、試合経過の表記をそのまま1回だけ表示する
     const orderLabel=player
-      ? (player.isSubstitute ? "代打" : `${player.order}番`)
-      : card.title;
+      ? (card.isPinchHit ? "代打" : `${player.order}番`)
+      : "";
 
     const rarityHtml=player
       ? `<span class="batter-rarity rarity ${rarityClass(player.rarity)}">${player.rarity}</span>`
@@ -247,7 +210,7 @@ function renderCard(){
 
       <div class="batter-info">
 
-        <span class="batter-order">${orderLabel}</span>
+        ${orderLabel ? `<span class="batter-order">${orderLabel}</span>` : ""}
 
         ${rarityHtml}
 
@@ -260,66 +223,67 @@ function renderCard(){
       <div style="font-size:15px;color:#6b7280;">走者:${runnerText}</div>
 
     `;
-
   }
 
   if(card.type==="result"){
-
     cardContainer.innerHTML=`
       <div class="card-type">打席結果</div>
       <p>${card.text.join("<br>")}</p>
     `;
-
   }
 
   if(card.type==="steal"){
-
     cardContainer.innerHTML=`
       <div class="card-type">盗塁</div>
       <p>${card.text.join("<br>")}</p>
     `;
-
   }
 
   if(card.type==="pickoff"){
-
     cardContainer.innerHTML=`
       <div class="card-type">牽制</div>
       <p>${card.text.join("<br>")}</p>
     `;
+  }
 
+  if(card.type==="offenseSub"){
+    cardContainer.innerHTML=`
+      <div class="card-type">${card.title}</div>
+      <p>${card.text.join("<br>")}</p>
+    `;
   }
 
   if(card.type==="defense"){
-
     cardContainer.innerHTML=`
       <div class="card-type">守備交代</div>
       <p>${card.text.join("<br>")}</p>
     `;
+  }
 
+  if(card.type==="pitcherChange"){
+    cardContainer.innerHTML=`
+      <div class="card-type">投手交代</div>
+      <p>${card.text.join("<br>")}</p>
+    `;
   }
 
   if(card.type==="end"){
-
     cardContainer.innerHTML=`
       <div class="card-type">試合終了</div>
       <h2>試合終了</h2>
     `;
-
   }
 
   animateCard();
-
 }
-
 
 // ------------------------------
 // 得点板描画
-// state.jsから完全生成
+// scoreSnap: 各回の得点・R/H/E
+// snap     : 現在のイニングのハイライト
 // ------------------------------
 
-function renderScoreboard(snapshot){
-
+function renderScoreboard(scoreSnap,snap,card){
   const table=document.getElementById("scoreboard");
   const inningRow=document.getElementById("inning-row");
   const tbody=document.getElementById("scoreboard-body");
@@ -335,9 +299,7 @@ function renderScoreboard(snapshot){
   inningRow.innerHTML="<th>TEAM</th>";
 
   for(let i=1;i<=gameState.maxInning;i++){
-
     inningRow.innerHTML+=`<th>${i}</th>`;
-
   }
 
   inningRow.innerHTML+="<th>R</th><th>H</th><th>E</th>";
@@ -358,43 +320,40 @@ function renderScoreboard(snapshot){
   // ---------- イニング ----------
 
   for(let i=1;i<=gameState.maxInning;i++){
-
     awayRow.innerHTML+=`
       <td data-inning="${i}" data-half="top">
-        ${getScoreboardDisplayFromSnapshot(snapshot,i,"top")}
+        ${getScoreboardDisplayFromSnapshot(scoreSnap,i,"top")}
       </td>
     `;
 
     homeRow.innerHTML+=`
       <td data-inning="${i}" data-half="bottom">
-        ${getScoreboardDisplayFromSnapshot(snapshot,i,"bottom")}
+        ${getScoreboardDisplayFromSnapshot(scoreSnap,i,"bottom")}
       </td>
     `;
-
   }
 
   // ---------- R H E ----------
 
   awayRow.innerHTML+=`
-    <td>${snapshot.scoreboard.total.away.R}</td>
-    <td>${snapshot.scoreboard.total.away.H}</td>
-    <td>${snapshot.scoreboard.total.away.E}</td>
+    <td>${scoreSnap.scoreboard.total.away.R}</td>
+    <td>${scoreSnap.scoreboard.total.away.H}</td>
+    <td>${scoreSnap.scoreboard.total.away.E}</td>
   `;
 
   homeRow.innerHTML+=`
-    <td>${snapshot.scoreboard.total.home.R}</td>
-    <td>${snapshot.scoreboard.total.home.H}</td>
-    <td>${snapshot.scoreboard.total.home.E}</td>
+    <td>${scoreSnap.scoreboard.total.home.R}</td>
+    <td>${scoreSnap.scoreboard.total.home.H}</td>
+    <td>${scoreSnap.scoreboard.total.home.E}</td>
   `;
 
   // ---------- ハイライト ----------
 
-  highlightCurrentInning(snapshot);
+  highlightCurrentInning(scoreSnap,snap,card);
 
   // ---------- タップ ----------
 
   setupScoreboardJump();
-
 }
 
 // ------------------------------
@@ -402,11 +361,11 @@ function renderScoreboard(snapshot){
 // ------------------------------
 
 function getScoreboardDisplayFromSnapshot(snapshot,inning,half){
+  const cell=snapshot.scoreboard[inning]?.[half];
 
-  const cell=snapshot.scoreboard[inning][half];
+  if(!cell)return "";
 
   switch(cell.status){
-
     case "pending":
       return "";
 
@@ -422,80 +381,77 @@ function getScoreboardDisplayFromSnapshot(snapshot,inning,half){
     case "walkoff":
 
       if(half==="bottom"){
-
         return `${cell.runs}x`;
-
       }
 
       return String(cell.runs);
 
     default:
       return "";
-
   }
-
 }
-
 
 // ------------------------------
 // 得点板セルタップジャンプ
 // ------------------------------
 
 function jumpToHalf(inning, half){
-
   const target = gameState.firstCard[half][inning];
 
   if(target === undefined) return;
 
   gameState.currentCard = target;
   renderCard();
-
 }
 
 function setupScoreboardJump(){
-
   document
     .querySelectorAll("#scoreboard td[data-inning]")
     .forEach(cell=>{
-
       cell.onclick=()=>{
-
         jumpToHalf(
-
           Number(cell.dataset.inning),
 
           cell.dataset.half
-
         );
-
       };
-
     });
-
 }
 
-function updateStatus(snap){
+// ------------------------------
+// 上部の表示・アウト・走者
+// ------------------------------
 
-  document.getElementById("inning-display").textContent=
-    `${snap.inning}回${snap.half==="top"?"表":"裏"}`;
+function updateStatus(snap,scoreSnap,card){
+  let inningText;
 
-  document.getElementById("away-score").textContent=snap.score.away;
-  document.getElementById("home-score").textContent=snap.score.home;
+  if(card.type==="start"){
+    inningText="試合開始";
+
+  }else if(card.type==="end"){
+    inningText="試合終了";
+
+  }else{
+    inningText=`${snap.inning}回${snap.half==="top"?"表":"裏"}`;
+  }
+
+  document.getElementById("inning-display").textContent=inningText;
+
+  document.getElementById("away-score").textContent=scoreSnap.score.away;
+  document.getElementById("home-score").textContent=scoreSnap.score.home;
+
   document.getElementById("out-text").textContent=`${snap.outs} OUT`;
 
   const lights=document.querySelectorAll(".light");
 
   lights.forEach((light,index)=>{
-
     light.classList.toggle("on",index<snap.outs);
-
   });
 
   document.getElementById("runner-text").textContent=
     snap.runners.length
     ? snap.runners.join("・")
     : "なし";
-
 }
 
 // ------------------------------
@@ -503,31 +459,34 @@ function updateStatus(snap){
 // ------------------------------
 
 function animateCard(){
-
   cardContainer.classList.remove("slide-in");
   void cardContainer.offsetWidth;
   cardContainer.classList.add("slide-in");
-
 }
 
 // ------------------------------
 // 現在イニングのハイライト
-// 表・裏を区別
+// 表・裏を区別。開始・終了カード、範囲外の回、
+// まだ始まっていない枠にはハイライトを付けない
 // ------------------------------
 
-function highlightCurrentInning(snapshot){
-
-  // 以前のハイライトを解除
+function highlightCurrentInning(scoreSnap,snap,card){
   document
     .querySelectorAll(".current-inning,.current-inning-header")
     .forEach(cell=>{
-
       cell.classList.remove("current-inning");
       cell.classList.remove("current-inning-header");
-
     });
 
-  const inning=snapshot.inning;
+  if(card.type==="start"||card.type==="end")return;
+
+  const inning=snap.inning;
+
+  if(inning<1||inning>gameState.maxInning)return;
+
+  const cell=scoreSnap.scoreboard[inning]?.[snap.half];
+
+  if(!cell||cell.status==="pending"||cell.status==="skip")return;
 
   const headerRow=document.getElementById("inning-row");
   const awayRow=document.getElementById("away-score-row");
@@ -536,26 +495,22 @@ function highlightCurrentInning(snapshot){
   // TEAM列が0番なのでイニング番号と同じインデックスになる
   const index=inning;
 
-  // ヘッダーは常に現在イニングを強調
+  // ヘッダーは現在イニングを強調
   if(headerRow.children[index]){
     headerRow.children[index].classList.add("current-inning-header");
   }
 
   // 攻撃側だけハイライト
-  if(snapshot.half==="top"){
-
+  if(snap.half==="top"){
     if(awayRow.children[index]){
       awayRow.children[index].classList.add("current-inning");
     }
 
   }else{
-
     if(homeRow.children[index]){
       homeRow.children[index].classList.add("current-inning");
     }
-
   }
-
 }
 
 // ------------------------------
@@ -563,14 +518,11 @@ function highlightCurrentInning(snapshot){
 // ------------------------------
 
 prevBtn.onclick=()=>{
-
   prevCard();
   renderCard();
-
 };
 
 nextBtn.onclick=()=>{
-
   nextCard();
 
   if(gameState.currentCard===gameState.cards.length-1){
@@ -578,5 +530,4 @@ nextBtn.onclick=()=>{
   }
 
   renderCard();
-
 };

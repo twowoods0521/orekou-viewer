@@ -25,7 +25,6 @@ const POSITION_RULES = {
 // ------------------------------
 
 const BALL_RULES = {
-
   "ゴロ":{
     type:"ground",
     suffix:"ゴロ",
@@ -55,7 +54,6 @@ const BALL_RULES = {
     suffix:"失",
     runner:true
   }
-
 };
 
 // ------------------------------
@@ -63,7 +61,6 @@ const BALL_RULES = {
 // ------------------------------
 
 const SPECIAL_RULES = [
-
   // ===== 出塁 =====
 
   {
@@ -91,6 +88,13 @@ const SPECIAL_RULES = [
     match:"ホームラン",
     type:"homeRun",
     abbr:"本塁打",
+    runner:false
+  },
+
+  {
+    match:"長打性のヒット",
+    type:"hit",
+    abbr:"安打",
     runner:true
   },
 
@@ -115,9 +119,22 @@ const SPECIAL_RULES = [
     runner:true
   },
 
-
   {
     match:"フォアボール",
+    type:"walk",
+    abbr:"四球",
+    runner:true
+  },
+
+  {
+    match:"敬遠",
+    type:"walk",
+    abbr:"四球",
+    runner:true
+  },
+
+  {
+    match:"満塁策",
     type:"walk",
     abbr:"四球",
     runner:true
@@ -136,7 +153,6 @@ const SPECIAL_RULES = [
     abbr:"野選",
     runner:true
   },
-
 
   // ===== アウト =====
 
@@ -177,7 +193,6 @@ const SPECIAL_RULES = [
     outs:1,
   },
 
-
   // ===== 得点 =====
 
   {
@@ -196,6 +211,11 @@ const SPECIAL_RULES = [
   {
     match:"タッチアップ",
     type:"tagUp"
+  },
+
+  {
+    match:"好返球でアウト",
+    type:"tagUpOut"
   },
 
   {
@@ -239,8 +259,7 @@ const SPECIAL_RULES = [
   {
     match:"牽制死",
     type:"pickoff",
-    outs:1,
-    removeRearRunner:true
+    outs:1
   },
 
   // ===== 交代 =====
@@ -274,7 +293,6 @@ const SPECIAL_RULES = [
     match:"登板",
     type:"pitcherChange"
   }
-
 ];
 
 // ==============================
@@ -282,22 +300,16 @@ const SPECIAL_RULES = [
 // ==============================
 
 function extractPosition(line){
-
   for(const [word,abbr] of Object.entries(POSITION_RULES)){
-
     if(line.includes(word)){
-
       return{
         word,
         abbr
       };
-
     }
-
   }
 
   return null;
-
 }
 
 // ==============================
@@ -306,25 +318,19 @@ function extractPosition(line){
 // ==============================
 
 function extractBallType(line){
-
   const entries = Object.entries(BALL_RULES)
     .sort((a,b)=>b[0].length-a[0].length);
 
   for(const [word,data] of entries){
-
     if(line.includes(word)){
-
       return{
         word,
         ...data
       };
-
     }
-
   }
 
   return null;
-
 }
 
 // ==============================
@@ -332,13 +338,11 @@ function extractBallType(line){
 // ==============================
 
 function extractSpecial(line){
-
   return SPECIAL_RULES.find(rule=>
 
     line.includes(rule.match)
 
   ) || null;
-
 }
 
 // ==============================
@@ -346,7 +350,6 @@ function extractSpecial(line){
 // ==============================
 
 function classifyLine(line){
-
      if(line.includes("バント失敗") && line.includes("フォースアウト")){
     return{
       type:"failedBuntForceOut",
@@ -361,21 +364,17 @@ function classifyLine(line){
   const special = extractSpecial(line);
 
   if(special){
-
     return{
       ...special,
       text:line
     };
-
   }
 
   const position = extractPosition(line);
   const ball = extractBallType(line);
 
   if(position && ball){
-
     return{
-
       type:ball.type,
 
       position:position.abbr,
@@ -389,16 +388,11 @@ function classifyLine(line){
       removeRearRunner:ball.removeRearRunner || false,
 
       text:line
-
     };
-
   }
 
   return{
-
     type:"unknown",
     text:line
-
   };
-
 }
