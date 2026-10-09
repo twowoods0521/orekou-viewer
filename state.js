@@ -130,35 +130,55 @@ function clearRunners(){
 }
 
 // ==============================
-// イニング終了(チェンジ)
-// 次の攻撃が無い(最終回の裏が終わった・未実施の裏になる)場合は
-// 最後の攻撃に留まり、アウトカウントは3のままにする
+// 次の攻撃(回・表裏)
 // ==============================
 
-function changeHalf(){
+function getNextHalf(){
+  if(gameState.half==="bottom"){
+    return{inning:gameState.inning+1,half:"top"};
+  }
+
+  return{inning:gameState.inning,half:"bottom"};
+}
+
+// 次の攻撃があるか(最終回の裏が終わった・未実施の裏になる場合はfalse)
+function hasNextHalf(){
+  const next=getNextHalf();
+
+  return !(next.inning>gameState.maxInning||isSkipCell(next.inning,next.half));
+}
+
+// ==============================
+// 3アウトでその回の攻撃が終わった(枠を「終了」にする)
+// ==============================
+
+function endHalf(){
   const cell=gameState.scoreboard[gameState.inning]?.[gameState.half];
 
   if(cell&&cell.status==="live"){
     cell.status="done";
   }
+}
+
+// ==============================
+// イニング終了(チェンジ)
+// 次の攻撃が無い場合は最後の攻撃に留まり、アウトカウントは3のままにする
+// ==============================
+
+function changeHalf(){
+  endHalf();
 
   clearRunners();
 
-  let nextInning=gameState.inning;
-  let nextHalf="bottom";
-
-  if(gameState.half==="bottom"){
-    nextInning++;
-    nextHalf="top";
-  }
-
-  if(nextInning>gameState.maxInning||isSkipCell(nextInning,nextHalf)){
+  if(!hasNextHalf()){
     return;
   }
 
+  const next=getNextHalf();
+
   gameState.outs=0;
 
-  startHalf(nextInning,nextHalf);
+  startHalf(next.inning,next.half);
 }
 
 // ==============================

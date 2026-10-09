@@ -54,6 +54,37 @@ function renderPlayerLink(name,url){
   return name;
 }
 
+// 走者の表示:「名前・」を1つのかたまりにして、折り返しは「・」の直後だけにする
+function renderRunners(runners){
+  if(!runners.length)return "なし";
+
+  return runners
+    .map((r,i)=>`<span class="runner-unit">${r}${i<runners.length-1 ? "・" : ""}</span>`)
+    .join("");
+}
+
+// 打席のそれまでの結果(打点がついた打席は赤文字)
+function renderHistory(history){
+  return (history||[])
+    .map(h=>h.rbi
+      ? `<span class="history-rbi">${h.short}</span>`
+      : `<span>${h.short}</span>`)
+    .join("");
+}
+
+// カードの文(名前がリンクになる部分を含む)
+function renderLines(card){
+  if(card.rich){
+    return card.rich
+      .map(segs=>segs
+        .map(s=>s.n!==undefined ? renderPlayerLink(s.n,s.u) : s.t)
+        .join(""))
+      .join("<br>");
+  }
+
+  return card.text.join("<br>");
+}
+
 function renderLineupTable(lineup){
   const rows=(lineup||[]).map(player=>{
     const hand=splitHand(player.hand);
@@ -200,9 +231,9 @@ function renderCard(){
       ? `<span class="batter-meta">${hand.throwHand}投${hand.batHand}打・<span class="condition-dot ${conditionClass(player.form)}" style="vertical-align:-2px;"></span></span>`
       : "";
 
-    const runnerText=snap.runners.length
-      ? snap.runners.join("・")
-      : "なし";
+    const historyHtml=card.history&&card.history.length
+      ? `<div class="batter-history"><span class="batter-history-label">ここまで:</span>${renderHistory(card.history)}</div>`
+      : "";
 
     cardContainer.innerHTML=`
 
@@ -220,7 +251,9 @@ function renderCard(){
 
       </div>
 
-      <div style="font-size:15px;color:#6b7280;">走者:${runnerText}</div>
+      <div class="batter-runners">走者:${renderRunners(snap.runners)}</div>
+
+      ${historyHtml}
 
     `;
   }
@@ -228,42 +261,49 @@ function renderCard(){
   if(card.type==="result"){
     cardContainer.innerHTML=`
       <div class="card-type">打席結果</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
     `;
   }
 
   if(card.type==="steal"){
     cardContainer.innerHTML=`
       <div class="card-type">盗塁</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
     `;
   }
 
   if(card.type==="pickoff"){
     cardContainer.innerHTML=`
       <div class="card-type">牽制</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
     `;
   }
 
   if(card.type==="offenseSub"){
     cardContainer.innerHTML=`
       <div class="card-type">${card.title}</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
     `;
   }
 
   if(card.type==="defense"){
     cardContainer.innerHTML=`
       <div class="card-type">守備交代</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
     `;
   }
 
   if(card.type==="pitcherChange"){
     cardContainer.innerHTML=`
       <div class="card-type">投手交代</div>
-      <p>${card.text.join("<br>")}</p>
+      <p>${renderLines(card)}</p>
+    `;
+  }
+
+  if(card.type==="change"){
+    cardContainer.innerHTML=`
+      <div class="card-type">チェンジ</div>
+      <h2>${card.text[0]}</h2>
     `;
   }
 
@@ -278,6 +318,15 @@ function renderCard(){
 }
 
 // ------------------------------
+// 得点板に表示する回数
+// 9回までは常に表示し、延長戦は到達した回まで(試合終了後は行われた回まで)
+// ------------------------------
+
+function visibleInnings(scoreSnap){
+  return Math.min(gameState.maxInning,Math.max(9,scoreSnap.inning));
+}
+
+// ------------------------------
 // 得点板描画
 // scoreSnap: 各回の得点・R/H/E
 // snap     : 現在のイニングのハイライト
@@ -288,17 +337,20 @@ function renderScoreboard(scoreSnap,snap,card){
   const inningRow=document.getElementById("inning-row");
   const tbody=document.getElementById("scoreboard-body");
 
+  // 延長戦の枠は、その回に入ったときに初めて表示する(最初は9回まで)
+  const visible=visibleInnings(scoreSnap);
+
   // 延長なら横スクロール
   table.classList.toggle(
     "extra-innings",
-    gameState.maxInning>9
+    visible>9
   );
 
   // ---------- ヘッダー ----------
 
-  inningRow.innerHTML="<th>TEAM</th>";
+  inningRow.innerHTML="<th></th>";
 
-  for(let i=1;i<=gameState.maxInning;i++){
+  for(let i=1;i<=visible;i++){
     inningRow.innerHTML+=`<th>${i}</th>`;
   }
 
@@ -319,7 +371,7 @@ function renderScoreboard(scoreSnap,snap,card){
 
   // ---------- イニング ----------
 
-  for(let i=1;i<=gameState.maxInning;i++){
+  for(let i=1;i<=visible;i++){
     awayRow.innerHTML+=`
       <td data-inning="${i}" data-half="top">
         ${getScoreboardDisplayFromSnapshot(scoreSnap,i,"top")}
@@ -448,10 +500,7 @@ function updateStatus(snap,scoreSnap,card){
     light.classList.toggle("on",index<snap.outs);
   });
 
-  document.getElementById("runner-text").textContent=
-    snap.runners.length
-    ? snap.runners.join("・")
-    : "なし";
+  document.getElementById("runner-text").innerHTML=renderRunners(snap.runners);
 }
 
 // ------------------------------
@@ -482,7 +531,7 @@ function highlightCurrentInning(scoreSnap,snap,card){
 
   const inning=snap.inning;
 
-  if(inning<1||inning>gameState.maxInning)return;
+  if(inning<1||inning>visibleInnings(scoreSnap))return;
 
   const cell=scoreSnap.scoreboard[inning]?.[snap.half];
 

@@ -172,6 +172,16 @@ body{
   gap:10px;
 }
 
+.outs-panel{
+  flex:none;
+}
+
+/* 走者名が長いときは折り返せるようにする */
+.runners-panel{
+  flex:0 1 auto;
+  min-width:0;
+}
+
 .status-title{
   font-size:18px;
   font-weight:600;
@@ -198,6 +208,20 @@ body{
 #runner-text{
   font-size:18px;
   font-weight:500;
+  line-height:1.4;
+
+  /* 走者名が2行になっても全体の高さが変わらないよう、常に2行分の高さにする */
+  min-height:2.8em;
+  min-width:0;
+  display:flex;
+  flex-wrap:wrap;
+  align-content:center;
+  align-items:center;
+}
+
+/* 走者の折り返しは「名前・」のかたまりの間(=「・」の直後)だけ */
+.runner-unit{
+  display:inline-block;
 }
 
 
@@ -225,18 +249,28 @@ body{
   font-weight:600;
 }
 
+.batter-runners{
+  font-size:15px;
+  color:#6b7280;
+}
+
 .batter-history{
   display:flex;
   flex-wrap:wrap;
-  gap:6px;
+  align-items:baseline;
+  gap:4px 12px;
+  margin-top:6px;
   font-size:15px;
 }
 
+.batter-history-label{
+  color:#6b7280;
+}
+
+/* 打点がついた打席は赤文字 */
 .history-rbi{
-  border:1px solid #c1121f;
   color:#c1121f;
-  padding:2px 6px;
-  border-radius:4px;
+  font-weight:600;
 }
 
 
@@ -515,7 +549,8 @@ body{
 
   font-weight:700;
   font-size:13px;
-  -webkit-text-stroke:0.6px #000;
+  -webkit-text-stroke:1px #000;
+  paint-order:stroke fill;
 
 }
 
@@ -583,7 +618,7 @@ body{
 
 a{
 
-  color:inherit;
+  color:#005500;
   text-decoration:none;
 
 }

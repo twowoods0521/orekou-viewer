@@ -396,7 +396,20 @@ function parsePlayByPlay(doc){
     });
   });
 
-  return entries;
+  // 行末が「、」の文は途中で切れているので、次の行とつなげる
+  const merged=[];
+
+  entries.forEach(e=>{
+    const last=merged[merged.length-1];
+
+    if(last&&last.text.endsWith("、")&&last.inning===e.inning&&last.half===e.half){
+      last.text+=e.text;
+    }else{
+      merged.push({...e});
+    }
+  });
+
+  return merged;
 }
 
 // ==============================
@@ -463,7 +476,7 @@ function buildCards(matchData){
   // 次の打席が無いまま残った走者イベントは、直前の打席の後に単独で表示する
   const flushPending=()=>{
     if(pending.length){
-      pushCards(pending.splice(0).map(makeRunnerEventCard));
+      pushCards(pending.splice(0).flatMap(makeRunnerEventCards));
     }
   };
 
@@ -504,7 +517,7 @@ function buildCards(matchData){
     // --------------------------
 
     if(RUNNER_EVENT_TYPES.includes(type)){
-      pending.push({line,event:{...special,text:line}});
+      pending.push({line,half:entry.half,event:{...special,text:line}});
 
       continue;
     }
@@ -528,7 +541,7 @@ function buildCards(matchData){
 
     flushDefense();
 
-    if(!atBat||isNewBatter(line)){
+    if(!atBat||isNewBatter(line,atBat)){
       flushAtBat();
 
       atBat={
@@ -561,9 +574,10 @@ function buildCards(matchData){
 
 // ==============================
 // 新しい打者判定
+// atBat: 進行中の打席(ランニングホームランの判定に使う)
 // ==============================
 
-function isNewBatter(line){
+function isNewBatter(line,atBat){
   // フィルダースチョイスの行は、新しい打席の開始
   // (打者名は続く「打った〇〇、」の行から取る)
   if(/フィルダースチョイス/.test(line)){
@@ -582,8 +596,23 @@ function isNewBatter(line){
     return false;
   }
 
+  // 「好走塁」は、直前の打席への追記
+  if(/好走塁/.test(line)){
+    return false;
+  }
+
   // 守備側の選手の名前が主語になる行などは、進行中の打席の続き
   if(/エラー|好返球でアウト/.test(line)){
+    return false;
+  }
+
+  // 「〇〇の打球がレフト/センター/ライト…」で始まった打席に続く
+  // 「ランニングホームラン」の行は、同じ打席への追記
+  if(
+    /ランニングホームラン/.test(line)&&
+    atBat&&
+    /打球が(レフト|センター|ライト)/.test(atBat.lines[0])
+  ){
     return false;
   }
 
@@ -611,15 +640,89 @@ function extractBatterToken(lines){
     }
   }
 
+  // 「〇〇の打球が…」
+  const ball=first.match(/^(.+?)の打球が/);
+
+  if(ball)return ball[1];
+
   return first.match(/^(.+?)が/)?.[1]||"";
+}
+
+// ==============================
+// カードに表示する文(名前をリンクにするための部品)
+// {t:文字} または {n:名前, u:リンク先}
+// ==============================
+
+function tSeg(text){
+  return{t:text};
+}
+
+function nSeg(side,token){
+  return{n:token,u:findPlayerByToken(side,token)?.url||""};
+}
+
+function segsToText(segs){
+  return segs.map(s=>s.t??s.n).join("");
+}
+
+// 試合経過の文から選手名を探して、その部分をリンクにする
+// 名前から選手を特定できない場合は、リンクにしない
+function linkSegments(line,battingSide){
+  const fieldingSide=battingSide==="away" ? "home" : "away";
+
+  const patterns=[
+    [/^(?:敬遠|満塁策)、(.+?)が歩かされる/,"bat"],
+    [/^打った(.+?)、/,"bat"],
+    [/^(?:一塁|二塁|三塁)走者の?(.+?)が/,"bat"],
+    [/^(.+?)の打球が/,"bat"],
+    [/^(.+?)の好返球でアウト/,"field"],
+    [/^(.+?)が(?:エラー|フィルダースチョイス)/,"field"],
+    [/、(.+?)がランニングホームラン/,"bat"],
+    [/^(.+?)が/,"bat"]
+  ];
+
+  for(const[re,who]of patterns){
+    const m=line.match(re);
+
+    if(!m)continue;
+
+    const token=m[1];
+
+    const sides=who==="bat"
+      ? [battingSide,fieldingSide]
+      : [fieldingSide,battingSide];
+
+    for(const side of sides){
+      const player=findPlayerByToken(side,token);
+
+      if(player&&player.url){
+        const idx=m.index+m[0].indexOf(token);
+
+        const segs=[];
+
+        if(idx>0)segs.push(tSeg(line.slice(0,idx)));
+
+        segs.push({n:token,u:player.url});
+
+        const rest=line.slice(idx+token.length);
+
+        if(rest)segs.push(tSeg(rest));
+
+        return segs;
+      }
+    }
+  }
+
+  return[tSeg(line)];
 }
 
 // ==============================
 // 走者イベント(盗塁など)の反映とカード
 // ==============================
 
+// アウトになる出来事(盗塁死・牽制死)を反映する。3アウトで回が終わるならtrue
 function applyRunnerEvent(event){
-  if(!event.outs)return;
+  if(!event.outs)return false;
 
   const runnerToken=
     event.text.match(/^(?:(?:一塁|二塁|三塁)走者の?)?(.+?)が/)?.[1]||"";
@@ -637,26 +740,63 @@ function applyRunnerEvent(event){
 
   setRunners([...gameState.runners]);
 
-  if(gameState.outs>=3){
-    changeHalf();
-  }
+  return gameState.outs>=3;
 }
 
-function makeRunnerEventCard(item){
-  applyRunnerEvent(item.event);
+function makeRunnerEventCards(item){
+  const halfEnded=applyRunnerEvent(item.event);
 
-  return{
+  const lines=[item.line];
+
+  const cards=[{
     type:item.event.type==="pickoff" ? "pickoff" : "steal",
 
-    text:[item.line],
+    text:lines,
+
+    rich:lines.map(l=>linkSegments(l,battingSideOf(item.half))),
 
     snapshot:createSnapshot()
-  };
+  }];
+
+  if(halfEnded){
+    cards.push(...closeHalfCards());
+  }
+
+  return cards;
+}
+
+// ==============================
+// 3アウトでその回が終わったとき
+// 「3アウト チェンジ」のカード(アウト3・残塁の走者を表示)を作り、次の回へ進む。
+// 試合の最後のアウトには、チェンジのカードは作らない。
+// ==============================
+
+function closeHalfCards(){
+  endHalf();
+
+  const cards=[];
+
+  if(hasNextHalf()){
+    cards.push({
+      type:"change",
+
+      text:["3アウト チェンジ"],
+
+      snapshot:createSnapshot()
+    });
+  }
+
+  changeHalf();
+
+  return cards;
 }
 
 // ==============================
 // 打席確定
 // ==============================
+
+// 結果としては意味を持たない行(これらが結果の枠を先に使わないようにする)
+const WEAK_RESULT_TYPES=["unknown","advance","holdThird","forceScore"];
 
 function finalizePlateAppearance(atBat){
   const cards=[];
@@ -677,7 +817,7 @@ function finalizePlateAppearance(atBat){
 
   if(batterPlayer)batterPlayer.pinchHit=false;
 
-  // 打者紹介カード(打席開始時点の状態)
+  // 打者紹介カード(打席開始時点の状態・それまでの打席結果つき)
   cards.push({
     type:"batter",
 
@@ -687,12 +827,16 @@ function finalizePlateAppearance(atBat){
 
     isPinchHit,
 
+    history:batterPlayer
+      ? batterPlayer.history.map(h=>({short:h.short,rbi:h.rbi}))
+      : [],
+
     snapshot:createSnapshot()
   });
 
   // 保留されていた走者イベント(盗塁など)を、打者紹介と打席結果の間に表示
   atBat.carry.forEach(item=>{
-    cards.push(makeRunnerEventCard(item));
+    cards.push(...makeRunnerEventCards(item));
   });
 
   // 得点(生還)
@@ -769,6 +913,13 @@ function finalizePlateAppearance(atBat){
         result=event;
         break;
 
+      // バント失敗:走者がいれば一番前の走者がアウトになり、打者は塁に残る
+      case"failedBunt":
+        result=runnersAtStart>0
+          ? {...event,abbr:"捕ゴロ",removeFrontRunner:true,runner:true}
+          : event;
+        break;
+
       case"doublePlay":{
         const pos=position||extractPosition(event.text)?.abbr||"";
 
@@ -796,30 +947,40 @@ function finalizePlateAppearance(atBat){
         break;
 
       default:
-        if(!result){
+        if(!result||WEAK_RESULT_TYPES.includes(result.type)){
           result=event;
         }
     }
   });
 
   // アウト・走者・H/Eをまとめて反映(3アウト判定は1回だけ)
-  applyAtBatResult(result,batterToken,tagUpOut ? 1 : 0);
+  const halfEnded=applyAtBatResult(result,batterToken,tagUpOut ? 1 : 0);
 
-  if(batterPlayer){
-    addPlayerHistory(side,batterPlayer.order,{
-      short:result?.abbr||"",
-      rbi:totalScore
-    });
+  // 打点:ランナーが生還した打席のうち、ゲッツーとエラーを除く
+  const hasRbi=
+    totalScore>0&&
+    result?.type!=="doublePlay"&&
+    result?.type!=="error";
+
+  if(batterPlayer&&result?.abbr){
+    batterPlayer.history.push({short:result.abbr,rbi:hasRbi});
   }
 
   cards.push({
     type:"result",
 
     text:lines,
+
+    rich:lines.map(l=>linkSegments(l,side)),
+
     result,
 
     snapshot:createSnapshot()
   });
+
+  if(halfEnded){
+    cards.push(...closeHalfCards());
+  }
 
   return cards;
 }
@@ -828,6 +989,7 @@ function finalizePlateAppearance(atBat){
 // 打席結果の反映
 // extraOuts: タッチアップアウトなど、打者の結果とは別に増えるアウト
 //            (一番前の走者も1人消える)
+// 戻り値: 3アウトでその回が終わったらtrue
 // ==============================
 
 function applyAtBatResult(result,batterToken,extraOuts){
@@ -873,19 +1035,18 @@ function applyAtBatResult(result,batterToken,extraOuts){
     addError(fieldingSide);
   }
 
-  if(gameState.outs>=3){
-    changeHalf();
-  }
+  return gameState.outs>=3;
 }
 
 // ==============================
 // 代打・代走・守備交代・投手交代のカード
 // 連続する行をまとめて処理し、最大3枚のカードを返す
 //   代打/代走カード → 守備交代カード → 投手交代カード
+// 交代する選手の名前はリンクにする
 // ==============================
 
 function buildDefenseCards(entries){
-  const offenseLines=[];
+  const offense=[];
   let hasPinchHit=false;
   let hasPinchRun=false;
 
@@ -929,7 +1090,10 @@ function buildDefenseCards(entries){
         substitutePlayer(side,outPlayer.order,inToken,{pinchHit:true});
       }
 
-      offenseLines.push(`${outToken}に代打、${inToken}`);
+      offense.push([
+        nSeg(side,outToken),tSeg("に代打、"),nSeg(side,inToken)
+      ]);
+
       hasPinchHit=true;
 
       return;
@@ -955,7 +1119,11 @@ function buildDefenseCards(entries){
         setRunners([...gameState.runners]);
       }
 
-      offenseLines.push(`${base}走者${outToken}に代走、${inToken}`);
+      offense.push([
+        tSeg(`${base}走者`),nSeg(side,outToken),
+        tSeg("に代走、"),nSeg(side,inToken)
+      ]);
+
       hasPinchRun=true;
 
       return;
@@ -976,7 +1144,7 @@ function buildDefenseCards(entries){
       if(player){
         setPosition(player,posText);
 
-        upsert({player,kind:"move",token});
+        upsert({player,kind:"move",token,side});
       }
 
       return;
@@ -1001,7 +1169,7 @@ function buildDefenseCards(entries){
 
         removeEntry(outPlayer);
 
-        upsert({player:inPlayer,kind:"sub",token:inToken,outToken});
+        upsert({player:inPlayer,kind:"sub",token:inToken,outToken,side});
       }
 
       return;
@@ -1020,7 +1188,7 @@ function buildDefenseCards(entries){
       if(player){
         setPosition(player,posText);
 
-        upsert({player,kind:"move",token});
+        upsert({player,kind:"move",token,side});
       }
 
       return;
@@ -1051,7 +1219,10 @@ function buildDefenseCards(entries){
 
       if(outPlayer)removeEntry(outPlayer);
 
-      explicitPitching.push(`${outToken}に代わり${inToken}が登板`);
+      explicitPitching.push([
+        nSeg(side,outToken),tSeg("に代わり"),
+        nSeg(side,inToken),tSeg("が登板")
+      ]);
     }
   });
 
@@ -1066,32 +1237,43 @@ function buildDefenseCards(entries){
     const prevPitcher=gameData[side].currentPitcher;
 
     if(finalPitcher&&prevPitcher&&finalPitcher!==prevPitcher){
-      implicitPitching.push(
-        `${makeToken(side,prevPitcher)}に代わり${makeToken(side,finalPitcher)}が登板`
-      );
+      implicitPitching.push([
+        nSeg(side,makeToken(side,prevPitcher)),tSeg("に代わり"),
+        nSeg(side,makeToken(side,finalPitcher)),tSeg("が登板")
+      ]);
 
       gameData[side].currentPitcher=finalPitcher;
     }
   });
 
+  const makeCard=(type,segLines,extra={})=>({
+    type,
+
+    ...extra,
+
+    text:segLines.map(segsToText),
+
+    rich:segLines,
+
+    snapshot:createSnapshot()
+  });
+
   const result=[];
 
-  if(offenseLines.length){
-    result.push({
-      type:"offenseSub",
-
-      title:hasPinchHit&&hasPinchRun
-        ? "代打・代走"
-        : (hasPinchHit ? "代打" : "代走"),
-
-      text:offenseLines,
-
-      snapshot:createSnapshot()
-    });
+  if(offense.length){
+    result.push(makeCard(
+      "offenseSub",
+      offense,
+      {
+        title:hasPinchHit&&hasPinchRun
+          ? "代打・代走"
+          : (hasPinchHit ? "代打" : "代走")
+      }
+    ));
   }
 
   // 投手になった選手は投手交代カードに回す
-  const defenseLines=ordered
+  const defense=ordered
 
     .filter(e=>e.player.currentPosition!=="投")
 
@@ -1099,30 +1281,21 @@ function buildDefenseCards(entries){
       const posName=positionName(e.player.currentPosition);
 
       return e.kind==="sub"
-        ? `${e.outToken}に代わり${e.token}が${posName}`
-        : `${e.token}　${posName}へ`;
+        ? [
+            nSeg(e.side,e.outToken),tSeg("に代わり"),
+            nSeg(e.side,e.token),tSeg(`が${posName}`)
+          ]
+        : [nSeg(e.side,e.token),tSeg(`　${posName}へ`)];
     });
 
-  if(defenseLines.length){
-    result.push({
-      type:"defense",
-
-      text:defenseLines,
-
-      snapshot:createSnapshot()
-    });
+  if(defense.length){
+    result.push(makeCard("defense",defense));
   }
 
-  const pitchingLines=[...explicitPitching,...implicitPitching];
+  const pitching=[...explicitPitching,...implicitPitching];
 
-  if(pitchingLines.length){
-    result.push({
-      type:"pitcherChange",
-
-      text:pitchingLines,
-
-      snapshot:createSnapshot()
-    });
+  if(pitching.length){
+    result.push(makeCard("pitcherChange",pitching));
   }
 
   return result;

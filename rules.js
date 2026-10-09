@@ -85,6 +85,13 @@ const SPECIAL_RULES = [
   },
 
   {
+    match:"ランニングホームラン",
+    type:"homeRun",
+    abbr:"走本",
+    runner:false
+  },
+
+  {
     match:"ホームラン",
     type:"homeRun",
     abbr:"本塁打",
