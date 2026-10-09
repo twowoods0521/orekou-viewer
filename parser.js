@@ -913,12 +913,21 @@ function finalizePlateAppearance(atBat){
         result=event;
         break;
 
-      // バント失敗:走者がいれば一番前の走者がアウトになり、打者は塁に残る
-      case"failedBunt":
-        result=runnersAtStart>0
-          ? {...event,abbr:"捕ゴロ",removeFrontRunner:true,runner:true}
-          : event;
+            // バント失敗
+      //   「二塁フォースアウト」:一番後ろの走者がアウト、打者は塁に残る(捕ゴロ)
+      //   「三塁フォースアウト」:一番前の走者がアウト、打者は塁に残る(捕ゴロ)
+      //   フォースアウトの文言が無い場合:フライアウトなどで打者アウト(捕飛)
+      case"failedBunt":{
+        const allText=lines.join("");
+        if(allText.includes("二塁フォースアウト")){
+          result={...event,abbr:"捕ゴロ",removeRearRunner:true,runner:true};
+        }else if(allText.includes("三塁フォースアウト")){
+          result={...event,abbr:"捕ゴロ",removeFrontRunner:true,runner:true};
+        }else{
+          result={...event,abbr:"捕飛"};
+        }
         break;
+      }
 
       case"doublePlay":{
         const pos=position||extractPosition(event.text)?.abbr||"";

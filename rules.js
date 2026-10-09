@@ -357,16 +357,6 @@ function extractSpecial(line){
 // ==============================
 
 function classifyLine(line){
-     if(line.includes("バント失敗") && line.includes("フォースアウト")){
-    return{
-      type:"failedBuntForceOut",
-      abbr:"捕ゴロ",
-      outs:1,
-      removeFrontRunner:true,
-      runner:true,
-      text:line
-    };
-}  
 
   const special = extractSpecial(line);
 
